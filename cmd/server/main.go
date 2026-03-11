@@ -211,7 +211,11 @@ func signupHandler(w http.ResponseWriter, r *http.Request) {
 		}
 	}
 
-	IdList := u2sso.GetallActiveIDfromContract(instanceS)
+	IdList, err := u2sso.GetallActiveIDfromContract(instanceS)
+	if err != nil {
+		fmt.Fprintf(w, "Could not get IDs from contract: %v\nSign up request failed\n", err)
+		return
+	}
 	res := u2sso.RegistrationVerify(proofHex, currentm, ringSize, serviceName, challenge, IdList, spkBytes)
 
 	if res {

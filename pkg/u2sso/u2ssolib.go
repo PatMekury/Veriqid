@@ -6,7 +6,6 @@ import (
 	"encoding/hex"
 	"fmt"
 	"io"
-	"log"
 	"math/big"
 	"os"
 	"unsafe"
@@ -38,7 +37,7 @@ func CreateChallenge() []byte {
 	return chalBytes
 }
 
-func CreatePasskey(filename string) {
+func CreatePasskey(filename string) error {
 	msk := make([]C.uint8_t, 32)
 	mskPtr := (*C.uint8_t)(unsafe.Pointer(&msk[0]))
 	C.RAND_bytes(mskPtr, 32)
@@ -46,18 +45,19 @@ func CreatePasskey(filename string) {
 
 	file, err := os.OpenFile(filename, os.O_CREATE|os.O_WRONLY, 0644)
 	if err != nil {
-		log.Fatal(err)
+		return fmt.Errorf("failed to create passkey file: %w", err)
 	}
 	// close fi on exit and check for its returned error
 	defer func() {
-		if err := file.Close(); err != nil {
-			log.Fatal(err)
+		if cerr := file.Close(); cerr != nil && err == nil {
+			err = fmt.Errorf("failed to close passkey file: %w", cerr)
 		}
 	}()
 	// write a chunk
 	if _, err := file.Write(mskBytes); err != nil {
-		panic(err)
+		return fmt.Errorf("failed to write passkey: %w", err)
 	}
+	return nil
 }
 
 func LoadPasskey(filename string) ([]byte, bool) {
@@ -65,17 +65,19 @@ func LoadPasskey(filename string) ([]byte, bool) {
 
 	file, err := os.Open(filename)
 	if err != nil {
-		log.Fatal(err)
+		fmt.Println("LoadPasskey error:", err)
+		return nil, false
 	}
 	// close fi on exit and check for its returned error
 	defer func() {
 		if err := file.Close(); err != nil {
-			log.Fatal(err)
+			fmt.Println("LoadPasskey close error:", err)
 		}
 	}()
 	n, err := file.Read(mskBytes)
 	if err != nil && err != io.EOF {
-		log.Fatal(err)
+		fmt.Println("LoadPasskey read error:", err)
+		return nil, false
 	}
 	if n == 0 {
 		return nil, false
@@ -184,7 +186,8 @@ func RegistrationProof(index int, currentm int, currentN int, serviceName []byte
 	proofHex := hex.EncodeToString(C.GoBytes(unsafe.Pointer(proofPtr), proofLen))
 	proofHexConverted, err := hex.DecodeString(proofHex)
 	if err != nil {
-		log.Fatal(err)
+		fmt.Println("hex decode error:", err)
+		return "", nil, false
 	}
 	proof = make([]C.uint8_t, proofLen)
 	proofPtr = (*C.uint8_t)(unsafe.Pointer(&proof[0]))
@@ -243,7 +246,8 @@ func RegistrationVerify(proofHex string, currentm int, currentN int, serviceName
 	proofLen := C.secp256k1_zero_mcom_get_size(&rctx, C.int(currentm))
 	proofHexConverted, err := hex.DecodeString(proofHex)
 	if err != nil {
-		log.Fatal(err)
+		fmt.Println("hex decode error:", err)
+		return false
 	}
 	proof := make([]C.uint8_t, proofLen)
 	proofPtr := (*C.uint8_t)(unsafe.Pointer(&proof[0]))
@@ -337,7 +341,8 @@ func AuthVerify(proofHex string, serviceName []byte, challenge []byte, spkBytes 
 
 	proofHexConverted, err := hex.DecodeString(proofHex)
 	if err != nil {
-		log.Fatal(err)
+		fmt.Println("hex decode error:", err)
+		return false
 	}
 	proof := make([]C.uint8_t, 65)
 	proofPtr := (*C.uint8_t)(unsafe.Pointer(&proof[0]))
@@ -356,27 +361,27 @@ func AuthVerify(proofHex string, serviceName []byte, challenge []byte, spkBytes 
 *
 Adds an id to the contract
 */
-func AddIDstoIdR(client *ethclient.Client, sk string, inst *U2sso, id []byte) int64 {
+func AddIDstoIdR(client *ethclient.Client, sk string, inst *U2sso, id []byte) (int64, error) {
 	privateKey, err := crypto.HexToECDSA(sk)
 	if err != nil {
-		log.Fatal(err)
+		return -1, fmt.Errorf("invalid ethereum key: %w", err)
 	}
 
 	publicKey := privateKey.Public()
 	publicKeyECDSA, ok := publicKey.(*ecdsa.PublicKey)
 	if !ok {
-		log.Fatal("cannot assert type: publicKey is not of type *ecdsa.PublicKey")
+		return -1, fmt.Errorf("cannot assert type: publicKey is not of type *ecdsa.PublicKey")
 	}
 
 	fromAddress := crypto.PubkeyToAddress(*publicKeyECDSA)
 	nonce, err := client.PendingNonceAt(context.Background(), fromAddress)
 	if err != nil {
-		log.Fatal(err)
+		return -1, fmt.Errorf("failed to get nonce: %w", err)
 	}
 
 	gasPrice, err := client.SuggestGasPrice(context.Background())
 	if err != nil {
-		log.Fatal(err)
+		return -1, fmt.Errorf("failed to get gas price: %w", err)
 	}
 
 	auth := bind.NewKeyedTransactor(privateKey)
@@ -392,33 +397,33 @@ func AddIDstoIdR(client *ethclient.Client, sk string, inst *U2sso, id []byte) in
 
 	_, err = inst.AddID(auth, byte32, byte33)
 	if err != nil {
-		log.Fatal(err)
+		return -1, fmt.Errorf("failed to add ID to contract: %w", err)
 	}
 
 	index, err := inst.GetIDIndex(nil, byte32, byte33)
 	if err != nil {
-		log.Fatal(err)
+		return -1, fmt.Errorf("failed to get ID index: %w", err)
 	}
 
-	return index.Int64()
+	return index.Int64(), nil
 }
 
 /*
 Gives the total ID size in the contract
 */
-func GetIDfromContract(inst *U2sso) int64 {
+func GetIDfromContract(inst *U2sso) (int64, error) {
 	result, err := inst.GetIDSize(nil)
 	if err != nil {
-		log.Fatal(err)
+		return 0, fmt.Errorf("failed to get ID size: %w", err)
 	}
 
-	return result.Int64()
+	return result.Int64(), nil
 }
 
 /*
 Gives the total ID index in the contract
 */
-func GetIDIndexfromContract(inst *U2sso, id []byte) int64 {
+func GetIDIndexfromContract(inst *U2sso, id []byte) (int64, error) {
 	//key := [32]byte{}
 	//copy(key[:], []byte("foo"))
 	byte32 := new(big.Int).SetBytes(id[:32])
@@ -426,34 +431,34 @@ func GetIDIndexfromContract(inst *U2sso, id []byte) int64 {
 
 	index, err := inst.GetIDIndex(nil, byte32, byte33)
 	if err != nil {
-		log.Fatal(err)
+		return -1, fmt.Errorf("failed to get ID index: %w", err)
 	}
 
-	return index.Int64()
+	return index.Int64(), nil
 }
 
 /*
 Get all active IDs from the list
 */
-func GetallActiveIDfromContract(inst *U2sso) [][]byte {
+func GetallActiveIDfromContract(inst *U2sso) ([][]byte, error) {
 
 	idlist := make([][]byte, 0)
 
 	idSize, err := inst.GetIDSize(nil)
 	if err != nil {
-		log.Fatal(err)
+		return nil, fmt.Errorf("failed to get ID size: %w", err)
 	}
 	i := int64(0)
 	for i = 0; i < idSize.Int64(); i++ {
 		index := big.NewInt(i)
 		state, err := inst.GetState(nil, index)
 		if err != nil {
-			log.Fatal(err)
+			return nil, fmt.Errorf("failed to get state for index %d: %w", i, err)
 		}
 		if state == true {
 			idbytes32, idbyte33, err := inst.GetIDs(nil, index)
 			if err != nil {
-				log.Fatal(err)
+				return nil, fmt.Errorf("failed to get IDs for index %d: %w", i, err)
 			}
 			id := idbytes32.Bytes()
 			if idbyte33.Int64() == 0 {
@@ -466,5 +471,5 @@ func GetallActiveIDfromContract(inst *U2sso) [][]byte {
 		}
 	}
 
-	return idlist
+	return idlist, nil
 }

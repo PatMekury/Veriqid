@@ -99,7 +99,10 @@ func main() {
 			return
 		}
 
-		u2sso.CreatePasskey(passkeypathFlag)
+		if err := u2sso.CreatePasskey(passkeypathFlag); err != nil {
+			fmt.Println("Could not create passkey:", err)
+			return
+		}
 		mskBytes, val := u2sso.LoadPasskey(passkeypathFlag)
 		if !val {
 			fmt.Println("Could not create and load passkey")
@@ -108,7 +111,12 @@ func main() {
 		fmt.Println("Passkey created successfully")
 
 		idBytes := u2sso.CreateID(mskBytes)
-		fmt.Println("Added ID to index:", u2sso.AddIDstoIdR(client, skFlag, instance, idBytes))
+		index, err := u2sso.AddIDstoIdR(client, skFlag, instance, idBytes)
+		if err != nil {
+			fmt.Println("Failed to add ID to contract:", err)
+			return
+		}
+		fmt.Println("Added ID to index:", index)
 		return
 	}
 
@@ -179,13 +187,17 @@ func main() {
 		}
 
 		idBytes := u2sso.CreateID(mskBytes)
-		index := u2sso.GetIDIndexfromContract(instance, idBytes)
-		if index == -1 {
+		index, err := u2sso.GetIDIndexfromContract(instance, idBytes)
+		if err != nil || index == -1 {
 			fmt.Println("The SSO-id for this passkey is not registered in the contract")
 			return
 		}
 
-		IdList := u2sso.GetallActiveIDfromContract(instance)
+		IdList, err := u2sso.GetallActiveIDfromContract(instance)
+		if err != nil {
+			fmt.Println("Could not get active IDs from contract:", err)
+			return
+		}
 		proofHex, spkBytes, val := u2sso.RegistrationProof(int(index), currentm, int(idsize.Int64()), serviceName, challenge, mskBytes, IdList)
 		fmt.Println("Proof hex:", proofHex)
 		fmt.Println("SPK hex:", hex.EncodeToString(spkBytes))
