@@ -82,7 +82,7 @@ func (b *Bridge) resolveContract(reqContract string) string {
 
 // connectToContract dials the Ethereum client and creates the contract instance.
 // This mirrors the setup logic in cmd/client/main.go lines 59-90.
-func connectToContract(rpcURL, contractAddr string) (*ethclient.Client, *u2sso.U2sso, error) {
+func connectToContract(rpcURL, contractAddr string) (*ethclient.Client, *u2sso.Veriqid, error) {
 	client, err := ethclient.Dial(rpcURL)
 	if err != nil {
 		return nil, nil, fmt.Errorf("failed to connect to Ethereum client at %s: %w", rpcURL, err)
@@ -97,9 +97,9 @@ func connectToContract(rpcURL, contractAddr string) (*ethclient.Client, *u2sso.U
 		return nil, nil, fmt.Errorf("no contract found at address %s", contractAddr)
 	}
 
-	instance, err := u2sso.NewU2sso(address, client)
+	instance, err := u2sso.NewVeriqid(address, client)
 	if err != nil {
-		return nil, nil, fmt.Errorf("failed to instantiate U2SSO contract: %w", err)
+		return nil, nil, fmt.Errorf("failed to instantiate Veriqid contract: %w", err)
 	}
 
 	return client, instance, nil
@@ -117,11 +117,14 @@ type CreateIdentityRequest struct {
 	// EthKey is the Ethereum private key (hex, WITHOUT 0x prefix) for gas.
 	EthKey string `json:"ethkey"`
 
-	// Contract is the U2SSO contract address (WITH 0x prefix). Optional if default set.
+	// Contract is the Veriqid contract address (WITH 0x prefix). Optional if default set.
 	Contract string `json:"contract,omitempty"`
 
 	// RPCURL is the Ethereum JSON-RPC endpoint. Optional if default set.
 	RPCURL string `json:"rpc_url,omitempty"`
+
+	// AgeBracket is the age category: 0=Unknown, 1=Under13, 2=Teen, 3=Adult.
+	AgeBracket uint8 `json:"age_bracket"`
 }
 
 // RegisterRequest holds the parameters for generating a registration proof.
@@ -343,7 +346,7 @@ func (b *Bridge) HandleCreateIdentity(w http.ResponseWriter, r *http.Request) {
 	mpkBytes := u2sso.CreateID(mskBytes)
 
 	// Step 4: Register mpk on the smart contract (Ethereum tx, costs gas)
-	index, err := u2sso.AddIDstoIdR(ethClient, req.EthKey, instance, mpkBytes)
+	index, err := u2sso.AddIDstoIdR(ethClient, req.EthKey, instance, mpkBytes, req.AgeBracket)
 	if err != nil {
 		writeError(w, http.StatusInternalServerError, "failed to register on-chain: "+err.Error())
 		return
@@ -582,7 +585,7 @@ func (b *Bridge) HandleListKeys(w http.ResponseWriter, r *http.Request) {
 	rpcURL := b.resolveRPCURL(req.RPCURL)
 
 	// Optionally connect to contract for on-chain status checks
-	var instance *u2sso.U2sso
+	var instance *u2sso.Veriqid
 	if contract != "" {
 		_, inst, err := connectToContract(rpcURL, contract)
 		if err == nil {

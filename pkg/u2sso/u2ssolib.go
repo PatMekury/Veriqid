@@ -361,7 +361,7 @@ func AuthVerify(proofHex string, serviceName []byte, challenge []byte, spkBytes 
 *
 Adds an id to the contract
 */
-func AddIDstoIdR(client *ethclient.Client, sk string, inst *U2sso, id []byte) (int64, error) {
+func AddIDstoIdR(client *ethclient.Client, sk string, inst *Veriqid, id []byte, ageBracket uint8) (int64, error) {
 	privateKey, err := crypto.HexToECDSA(sk)
 	if err != nil {
 		return -1, fmt.Errorf("invalid ethereum key: %w", err)
@@ -395,7 +395,7 @@ func AddIDstoIdR(client *ethclient.Client, sk string, inst *U2sso, id []byte) (i
 	byte32 := new(big.Int).SetBytes(id[:32])
 	byte33 := new(big.Int).SetBytes(id[32:])
 
-	_, err = inst.AddID(auth, byte32, byte33)
+	_, err = inst.AddID(auth, byte32, byte33, ageBracket)
 	if err != nil {
 		return -1, fmt.Errorf("failed to add ID to contract: %w", err)
 	}
@@ -411,7 +411,7 @@ func AddIDstoIdR(client *ethclient.Client, sk string, inst *U2sso, id []byte) (i
 /*
 Gives the total ID size in the contract
 */
-func GetIDfromContract(inst *U2sso) (int64, error) {
+func GetIDfromContract(inst *Veriqid) (int64, error) {
 	result, err := inst.GetIDSize(nil)
 	if err != nil {
 		return 0, fmt.Errorf("failed to get ID size: %w", err)
@@ -423,7 +423,7 @@ func GetIDfromContract(inst *U2sso) (int64, error) {
 /*
 Gives the total ID index in the contract
 */
-func GetIDIndexfromContract(inst *U2sso, id []byte) (int64, error) {
+func GetIDIndexfromContract(inst *Veriqid, id []byte) (int64, error) {
 	//key := [32]byte{}
 	//copy(key[:], []byte("foo"))
 	byte32 := new(big.Int).SetBytes(id[:32])
@@ -440,7 +440,7 @@ func GetIDIndexfromContract(inst *U2sso, id []byte) (int64, error) {
 /*
 Get all active IDs from the list
 */
-func GetallActiveIDfromContract(inst *U2sso) ([][]byte, error) {
+func GetallActiveIDfromContract(inst *Veriqid) ([][]byte, error) {
 
 	idlist := make([][]byte, 0)
 

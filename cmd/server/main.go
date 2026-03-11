@@ -64,7 +64,7 @@ const sname = "abc_service"
 var contractSFlag string
 var clientSFlag string
 
-var instanceS *u2sso.U2sso
+var instanceS *u2sso.Veriqid
 
 func main() {
 	flag.StringVar(&contractSFlag, "contract", "", "The hexAddress of your contract, e.g., 0xf...")
@@ -96,9 +96,9 @@ func main() {
 			log.Fatal(err)
 		}
 		isContract := len(bytecode) > 0
-		instanceS, err = u2sso.NewU2sso(contractAddress, client)
+		instanceS, err = u2sso.NewVeriqid(contractAddress, client)
 		if err != nil || !isContract {
-			fmt.Println("No U2SSO contract at", contractSFlag)
+			fmt.Println("No Veriqid contract at", contractSFlag)
 			return
 		}
 		fmt.Println("Found the contract at", contractSFlag)

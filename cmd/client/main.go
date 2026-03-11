@@ -48,7 +48,7 @@ func main() {
 
 	var client *ethclient.Client
 	var err error
-	var instance *u2sso.U2sso
+	var instance *u2sso.Veriqid
 	var idsize *big.Int
 
 	if commandFlag == "" {
@@ -75,9 +75,9 @@ func main() {
 			log.Fatal(err)
 		}
 		isContract := len(bytecode) > 0
-		instance, err = u2sso.NewU2sso(contractAddress, client)
+		instance, err = u2sso.NewVeriqid(contractAddress, client)
 		if err != nil || !isContract {
-			fmt.Println("No U2SSO contract at", contractFlag)
+			fmt.Println("No Veriqid contract at", contractFlag)
 			return
 		}
 		fmt.Println("Found the contract at", contractFlag)
@@ -111,7 +111,7 @@ func main() {
 		fmt.Println("Passkey created successfully")
 
 		idBytes := u2sso.CreateID(mskBytes)
-		index, err := u2sso.AddIDstoIdR(client, skFlag, instance, idBytes)
+		index, err := u2sso.AddIDstoIdR(client, skFlag, instance, idBytes, 1) // ageBracket=1 (Under13) default for CLI
 		if err != nil {
 			fmt.Println("Failed to add ID to contract:", err)
 			return
