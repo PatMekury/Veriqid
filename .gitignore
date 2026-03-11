@@ -1,0 +1,66 @@
+# --- Go ---
+bin/
+build/
+dist/
+*.exe
+*.dll
+*.so
+*.dylib
+*.test
+*.out
+
+# Go modules
+vendor/
+go.sum
+
+# --- CGO / libsecp256k1 (Boquila fork) ---
+crypto-dbpoe/.libs/
+crypto-dbpoe/*.o
+crypto-dbpoe/*.lo
+crypto-dbpoe/*.la
+crypto-dbpoe/Makefile
+crypto-dbpoe/config.*
+crypto-dbpoe/libtool
+crypto-dbpoe/autom4te.cache/
+
+# --- Node / SNARK / JS SDK ---
+node_modules/
+.cache/
+dist/
+build/
+circuits/build/
+circuits/compiled/
+*.r1cs
+*.zkey
+*.ptau
+*.wasm
+
+# --- Truffle / Hardhat ---
+contracts/build/
+artifacts/
+cache/
+typechain/
+
+# --- Keys & Secrets (critical for Veriqid) ---
+*.key
+*.pem
+*.p12
+*.keystore
+*.ethkey
+keypath/
+**/keys/
+**/secrets/
+**/msk*
+**/mpk*
+
+# --- Local Dev ---
+.env
+.env.*
+.DS_Store
+Thumbs.db
+
+# --- IDE ---
+.vscode/
+.idea/
+*.swp
+*.swo
