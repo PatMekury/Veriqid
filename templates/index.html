@@ -1,0 +1,35 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>{{.PlatformName}} — Powered by Veriqid</title>
+    <link rel="stylesheet" href="/static/style.css">
+</head>
+<body>
+    <div class="container">
+        <h1>Welcome to {{.PlatformName}}</h1>
+        <p>Age-verified, privacy-preserving accounts powered by <strong>Veriqid</strong>.</p>
+
+        {{if .LoggedIn}}
+        <div class="user-info">
+            <p>Logged in as: <strong>{{.Username}}</strong></p>
+            <a href="/dashboard" class="btn btn-primary">Go to Dashboard</a>
+            <a href="/logout" class="btn btn-secondary">Log Out</a>
+        </div>
+        {{else}}
+        <div class="actions">
+            <a href="/signup" class="btn btn-primary">Sign Up with Veriqid</a>
+            <a href="/login" class="btn btn-secondary">Log In with Veriqid</a>
+        </div>
+        {{end}}
+
+        <div class="info">
+            <h3>How it works</h3>
+            <p>Your identity is verified once through a trusted authority.
+               No personal data is shared with {{.PlatformName}}.
+               We only learn that you are a verified user — nothing else.</p>
+        </div>
+    </div>
+</body>
+</html>

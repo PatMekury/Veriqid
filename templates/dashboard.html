@@ -1,0 +1,32 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Dashboard — {{.PlatformName}}</title>
+    <link rel="stylesheet" href="/static/style.css">
+</head>
+<body>
+    <div class="container">
+        <h1>Welcome, {{.Username}}!</h1>
+        <p>You are logged in to <strong>{{.PlatformName}}</strong>.</p>
+
+        <div class="dashboard-info">
+            <h3>Your Account</h3>
+            <p><strong>Username:</strong> {{.Username}}</p>
+            <p><strong>Age Bracket:</strong> {{.AgeBracketLabel}}</p>
+            <p><strong>Registered:</strong> {{.CreatedAt}}</p>
+            <p><strong>Last Login:</strong> {{.LastLogin}}</p>
+        </div>
+
+        <div class="dashboard-content">
+            <h3>Platform Content</h3>
+            <p>This is where {{.PlatformName}} would show age-appropriate content.
+               Because your age bracket is <strong>{{.AgeBracketLabel}}</strong>,
+               content is filtered accordingly.</p>
+        </div>
+
+        <a href="/logout" class="btn btn-secondary">Log Out</a>
+    </div>
+</body>
+</html>

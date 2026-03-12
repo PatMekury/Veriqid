@@ -1,0 +1,45 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Log In — {{.PlatformName}}</title>
+    <link rel="stylesheet" href="/static/style.css">
+</head>
+<body>
+    <div class="container">
+        <h1>Log In to {{.PlatformName}}</h1>
+        <p>Authenticate using your Veriqid identity.</p>
+
+        <form method="POST" action="/login" id="login-form">
+            <input type="hidden" name="challenge" value="{{.Challenge}}" id="veriqid-challenge">
+            <input type="hidden" name="sname" value="{{.ServiceName}}" id="veriqid-service-name">
+
+            <div class="form-group">
+                <label for="name">Username:</label>
+                <input type="text" name="name" id="name" required
+                       placeholder="Your username">
+            </div>
+
+            <div class="form-group">
+                <label for="spk">Public Key (SPK):</label>
+                <input type="text" name="spk" id="veriqid-spk" required
+                       placeholder="Will be filled by Veriqid extension">
+            </div>
+
+            <div class="form-group">
+                <label for="signature">Auth Proof:</label>
+                <textarea name="signature" id="veriqid-auth-proof" required rows="4"
+                          placeholder="Will be filled by Veriqid extension"></textarea>
+            </div>
+
+            <button type="submit" class="btn btn-primary">Log In!</button>
+        </form>
+
+        <p class="note">
+            <strong>Challenge:</strong> <code>{{.Challenge}}</code><br>
+            <strong>Service:</strong> <code>{{.ServiceName}}</code>
+        </p>
+    </div>
+</body>
+</html>
