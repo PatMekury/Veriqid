@@ -1,35 +1,115 @@
 <!DOCTYPE html>
 <html lang="en">
 <head>
-    <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>{{.PlatformName}} — Powered by Veriqid</title>
-    <link rel="stylesheet" href="/static/style.css">
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>{{.PlatformName}} — Powered by Veriqid</title>
+  <link rel="stylesheet" href="/static/base.css">
 </head>
 <body>
-    <div class="container">
-        <h1>Welcome to {{.PlatformName}}</h1>
-        <p>Age-verified, privacy-preserving accounts powered by <strong>Veriqid</strong>.</p>
-
-        {{if .LoggedIn}}
-        <div class="user-info">
-            <p>Logged in as: <strong>{{.Username}}</strong></p>
-            <a href="/dashboard" class="btn btn-primary">Go to Dashboard</a>
-            <a href="/logout" class="btn btn-secondary">Log Out</a>
-        </div>
-        {{else}}
-        <div class="actions">
-            <a href="/signup" class="btn btn-primary">Sign Up with Veriqid</a>
-            <a href="/login" class="btn btn-secondary">Log In with Veriqid</a>
-        </div>
-        {{end}}
-
-        <div class="info">
-            <h3>How it works</h3>
-            <p>Your identity is verified once through a trusted authority.
-               No personal data is shared with {{.PlatformName}}.
-               We only learn that you are a verified user — nothing else.</p>
-        </div>
+  <!-- Nav -->
+  <nav class="vq-nav">
+    <a href="/" class="vq-nav-brand">
+      <div class="vq-nav-brand-icon">🛡️</div>
+      <span class="vq-nav-brand-name">{{.PlatformName}}</span>
+    </a>
+    <ul class="vq-nav-links">
+      <li><a href="/" class="vq-nav-link active">Home</a></li>
+      <li><a href="/signup" class="vq-nav-link">Sign Up</a></li>
+      <li><a href="/login" class="vq-nav-link">Log In</a></li>
+    </ul>
+    <div class="vq-nav-action">
+      {{if .LoggedIn}}
+      <a href="/dashboard" class="vq-btn-outline">📊 Dashboard</a>
+      {{else}}
+      <a href="/login" class="vq-btn-outline">👤 Log In</a>
+      {{end}}
     </div>
+  </nav>
+
+  {{if .LoggedIn}}
+  <!-- Logged-in hero -->
+  <section class="vq-hero">
+    <p class="vq-hero-subtitle">Welcome Back</p>
+    <h1 class="vq-hero-title">
+      Hello, <span class="accent">{{.Username}}</span>
+    </h1>
+    <p class="vq-hero-desc">
+      You're verified and logged in to {{.PlatformName}}. Your identity remains private — always.
+    </p>
+    <a href="/dashboard" class="vq-btn-primary">Go to Dashboard</a>
+    <a href="/logout" class="vq-btn-secondary" style="margin-left: 12px;">Log Out</a>
+  </section>
+  {{else}}
+  <!-- Hero -->
+  <section class="vq-hero">
+    <p class="vq-hero-subtitle">Your Privacy-First Platform</p>
+    <h1 class="vq-hero-title">
+      Verify Once,<br>
+      Play <span class="accent">Everywhere</span>
+    </h1>
+    <p class="vq-hero-desc">
+      Access {{.PlatformName}} with zero data exposure. Your child's identity stays private — powered by Veriqid's zero-knowledge proofs.
+    </p>
+    <a href="/signup" class="vq-btn-primary">Get Started Now</a>
+
+    <div class="vq-stat-badges">
+      <div class="vq-stat-badge">
+        <div class="vq-stat-badge-icon">🔐</div>
+        <div class="vq-stat-badge-label">Zero Knowledge</div>
+        <div class="vq-stat-badge-value">100%</div>
+      </div>
+      <div class="vq-stat-badge">
+        <div class="vq-stat-badge-icon">🛡️</div>
+        <div class="vq-stat-badge-label">COPPA Compliant</div>
+        <div class="vq-stat-badge-value">Yes</div>
+      </div>
+      <div class="vq-stat-badge">
+        <div class="vq-stat-badge-icon">⚡</div>
+        <div class="vq-stat-badge-label">Verification</div>
+        <div class="vq-stat-badge-value">&lt;2s</div>
+      </div>
+    </div>
+
+    <div class="vq-review" style="margin-top: 48px;">
+      <div class="vq-review-avatars">
+        <div class="vq-review-avatar">👧</div>
+        <div class="vq-review-avatar">👦</div>
+        <div class="vq-review-avatar">👩</div>
+      </div>
+      <div class="vq-review-score">4.9</div>
+      <div>
+        <div class="vq-review-text">Parent Approved</div>
+        <div class="vq-review-sub">Privacy-first verification</div>
+      </div>
+    </div>
+  </section>
+
+  <!-- Features -->
+  <section class="vq-features">
+    <div class="vq-features-grid">
+      <div class="vq-feature-card">
+        <div class="vq-feature-icon">🔒</div>
+        <div class="vq-feature-title">Zero Data Exposure</div>
+        <div class="vq-feature-desc">Platforms learn only that your child is verified — nothing else. No names, no birthdates, no tracking.</div>
+      </div>
+      <div class="vq-feature-card highlighted">
+        <div class="vq-feature-icon">⚡</div>
+        <div class="vq-feature-title">Instant Verification</div>
+        <div class="vq-feature-desc">Cryptographic proof generation in under 2 seconds. The browser extension handles everything automatically.</div>
+      </div>
+      <div class="vq-feature-card">
+        <div class="vq-feature-icon">🌐</div>
+        <div class="vq-feature-title">Cross-Platform</div>
+        <div class="vq-feature-desc">One identity works across every Veriqid-enabled platform. Unlinkable pseudonyms protect privacy.</div>
+      </div>
+      <div class="vq-feature-card">
+        <div class="vq-feature-icon">👨‍👩‍👧</div>
+        <div class="vq-feature-title">Parent Control</div>
+        <div class="vq-feature-desc">Parents can revoke the master identity with a single click — immediately deactivating all platform accounts.</div>
+      </div>
+    </div>
+  </section>
+  {{end}}
 </body>
 </html>

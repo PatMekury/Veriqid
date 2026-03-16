@@ -1,16 +1,33 @@
 <!DOCTYPE html>
 <html lang="en">
 <head>
-    <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>{{.Title}} — {{.PlatformName}}</title>
-    <link rel="stylesheet" href="/static/style.css">
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>{{.Title}} — {{.PlatformName}}</title>
+  <link rel="stylesheet" href="/static/base.css">
 </head>
 <body>
-    <div class="container">
-        <h1>{{.Title}}</h1>
-        <p>{{.Message}}</p>
-        <a href="/" class="btn btn-primary">Back to Home</a>
+  <nav class="vq-nav">
+    <a href="/" class="vq-nav-brand">
+      <div class="vq-nav-brand-icon">🛡️</div>
+      <span class="vq-nav-brand-name">{{.PlatformName}}</span>
+    </a>
+  </nav>
+
+  <div class="vq-result-page">
+    <div class="vq-result-box">
+      {{if .Success}}
+      <div class="vq-result-icon success">✓</div>
+      <h2 class="vq-result-title">{{.Title}}</h2>
+      <p class="vq-result-desc">{{.Message}}</p>
+      <a href="/dashboard" class="vq-btn-primary">Go to Dashboard</a>
+      {{else}}
+      <div class="vq-result-icon failure">✗</div>
+      <h2 class="vq-result-title">{{.Title}}</h2>
+      <p class="vq-result-desc">{{.Message}}</p>
+      <a href="/" class="vq-btn-secondary">Back to Home</a>
+      {{end}}
     </div>
+  </div>
 </body>
 </html>

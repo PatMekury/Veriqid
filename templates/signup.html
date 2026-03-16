@@ -1,53 +1,89 @@
 <!DOCTYPE html>
 <html lang="en">
 <head>
-    <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Sign Up — {{.PlatformName}}</title>
-    <link rel="stylesheet" href="/static/style.css">
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Sign Up — {{.PlatformName}}</title>
+  <link rel="stylesheet" href="/static/base.css">
 </head>
 <body>
-    <div class="container">
-        <h1>Sign Up for {{.PlatformName}}</h1>
-        <p>Prove your age-verified identity using Veriqid.</p>
+  <nav class="vq-nav">
+    <a href="/" class="vq-nav-brand">
+      <div class="vq-nav-brand-icon">🛡️</div>
+      <span class="vq-nav-brand-name">{{.PlatformName}}</span>
+    </a>
+    <ul class="vq-nav-links">
+      <li><a href="/" class="vq-nav-link">Home</a></li>
+      <li><a href="/signup" class="vq-nav-link active">Sign Up</a></li>
+      <li><a href="/login" class="vq-nav-link">Log In</a></li>
+    </ul>
+  </nav>
 
-        <form method="POST" action="/signup" id="signup-form">
-            <input type="hidden" name="challenge" value="{{.Challenge}}" id="veriqid-challenge">
-            <input type="hidden" name="sname" value="{{.ServiceName}}" id="veriqid-service-name">
+  <div class="vq-form-page" style="min-height: calc(100vh - 70px);">
+    <div class="vq-form-sidebar">
+      <h1 class="vq-hero-title" style="font-size: 38px;">
+        Join with<br><span class="accent">Zero</span> Data Exposure
+      </h1>
+      <p class="vq-hero-desc" style="font-size: 15px;">
+        Your Veriqid browser extension will auto-fill the proof fields. Just enter a username and click Sign Up.
+      </p>
+      <div class="vq-stat-badges">
+        <div class="vq-stat-badge">
+          <div class="vq-stat-badge-icon">🔐</div>
+          <div class="vq-stat-badge-label">Privacy</div>
+          <div class="vq-stat-badge-value">100%</div>
+        </div>
+        <div class="vq-stat-badge">
+          <div class="vq-stat-badge-icon">⚡</div>
+          <div class="vq-stat-badge-label">Auto-Fill</div>
+          <div class="vq-stat-badge-value">On</div>
+        </div>
+      </div>
+    </div>
 
-            <div class="form-group">
-                <label for="name">Choose a username:</label>
-                <input type="text" name="name" id="name" required
-                       placeholder="e.g., coolkid42" maxlength="30">
-            </div>
+    <div class="vq-form-main">
+      <div class="vq-form-box">
+        <h2>Create <span class="accent">Account</span></h2>
+        <p>Sign up with your Veriqid identity — no personal data required.</p>
 
-            <div class="form-group">
-                <label for="spk">Public Key (SPK):</label>
-                <input type="text" name="spk" id="veriqid-spk" required
-                       placeholder="Will be filled by Veriqid extension">
-            </div>
+        <form method="POST" action="/signup">
+          <!-- Hidden fields for extension detection -->
+          <input type="hidden" id="veriqid-challenge" name="challenge" value="{{.Challenge}}">
+          <input type="hidden" id="veriqid-service-name" name="sname" value="{{.ServiceName}}">
 
-            <div class="form-group">
-                <label for="n">Ring Size (N):</label>
-                <input type="text" name="n" id="veriqid-ring-size" required
-                       placeholder="Will be filled by Veriqid extension">
-            </div>
+          <div class="vq-form-group">
+            <label class="vq-form-label" for="name">Username</label>
+            <input type="text" id="name" name="name" class="vq-form-input" placeholder="Choose a username" required>
+          </div>
 
-            <div class="form-group">
-                <label for="proof">Membership Proof:</label>
-                <textarea name="proof" id="veriqid-proof" required rows="4"
-                          placeholder="Will be filled by Veriqid extension"></textarea>
-            </div>
+          <div class="vq-form-group">
+            <label class="vq-form-label" for="veriqid-spk">Public Key (SPK)</label>
+            <input type="text" id="veriqid-spk" name="spk" class="vq-form-input" placeholder="Auto-filled by Veriqid extension" style="font-family: var(--vq-mono); font-size: 12px;">
+            <span class="vq-form-hint">Filled automatically by the browser extension</span>
+          </div>
 
-            <input type="hidden" name="nullifier" value="">
+          <div class="vq-form-group">
+            <label class="vq-form-label" for="veriqid-proof">Membership Proof</label>
+            <input type="text" id="veriqid-proof" name="proof" class="vq-form-input" placeholder="Auto-filled by Veriqid extension" style="font-family: var(--vq-mono); font-size: 12px;">
+          </div>
 
-            <button type="submit" class="btn btn-primary">Sign Up!</button>
+          <div class="vq-form-group">
+            <label class="vq-form-label" for="veriqid-ring-size">Ring Size</label>
+            <input type="text" id="veriqid-ring-size" name="n" class="vq-form-input" placeholder="Auto-filled" style="font-family: var(--vq-mono);">
+          </div>
+
+          <input type="hidden" name="nullifier" value="">
+
+          <div class="vq-form-submit">
+            <button type="submit" class="vq-btn-primary" style="width: 100%;">Sign Up</button>
+          </div>
         </form>
 
-        <p class="note">
-            <strong>Challenge:</strong> <code>{{.Challenge}}</code><br>
-            <strong>Service:</strong> <code>{{.ServiceName}}</code>
+        <p style="text-align: center; margin-top: 20px; font-size: 13px; color: var(--vq-gray-400);">
+          Already have an account? <a href="/login" style="color: var(--vq-accent); text-decoration: none;">Log In</a>
         </p>
+      </div>
     </div>
+  </div>
 </body>
 </html>

@@ -1,32 +1,68 @@
 <!DOCTYPE html>
 <html lang="en">
 <head>
-    <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Dashboard — {{.PlatformName}}</title>
-    <link rel="stylesheet" href="/static/style.css">
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Dashboard — {{.PlatformName}}</title>
+  <link rel="stylesheet" href="/static/base.css">
 </head>
 <body>
-    <div class="container">
-        <h1>Welcome, {{.Username}}!</h1>
-        <p>You are logged in to <strong>{{.PlatformName}}</strong>.</p>
-
-        <div class="dashboard-info">
-            <h3>Your Account</h3>
-            <p><strong>Username:</strong> {{.Username}}</p>
-            <p><strong>Age Bracket:</strong> {{.AgeBracketLabel}}</p>
-            <p><strong>Registered:</strong> {{.CreatedAt}}</p>
-            <p><strong>Last Login:</strong> {{.LastLogin}}</p>
-        </div>
-
-        <div class="dashboard-content">
-            <h3>Platform Content</h3>
-            <p>This is where {{.PlatformName}} would show age-appropriate content.
-               Because your age bracket is <strong>{{.AgeBracketLabel}}</strong>,
-               content is filtered accordingly.</p>
-        </div>
-
-        <a href="/logout" class="btn btn-secondary">Log Out</a>
+  <nav class="vq-nav">
+    <a href="/" class="vq-nav-brand">
+      <div class="vq-nav-brand-icon">🛡️</div>
+      <span class="vq-nav-brand-name">{{.PlatformName}}</span>
+    </a>
+    <ul class="vq-nav-links">
+      <li><a href="/dashboard" class="vq-nav-link active">Dashboard</a></li>
+    </ul>
+    <div class="vq-nav-action">
+      <a href="/logout" class="vq-btn-outline">Logout</a>
     </div>
+  </nav>
+
+  <div class="vq-dashboard">
+    <div class="vq-dashboard-header">
+      <h1 class="vq-dashboard-welcome">
+        Welcome back, <span class="accent">{{.Username}}</span>
+      </h1>
+    </div>
+
+    <div class="vq-dashboard-grid">
+      <div class="vq-dashboard-card">
+        <div class="vq-dashboard-card-title">Account Status</div>
+        <div class="vq-dashboard-card-value" style="color: var(--vq-success);">Active</div>
+        <div class="vq-dashboard-card-desc">Your Veriqid identity is verified and active</div>
+      </div>
+
+      <div class="vq-dashboard-card">
+        <div class="vq-dashboard-card-title">Age Bracket</div>
+        <div class="vq-dashboard-card-value">{{.AgeBracketLabel}}</div>
+        <div class="vq-dashboard-card-desc">Verified by trusted authority</div>
+      </div>
+
+      <div class="vq-dashboard-card">
+        <div class="vq-dashboard-card-title">Member Since</div>
+        <div class="vq-dashboard-card-value" style="font-size: 20px;">{{.CreatedAt}}</div>
+        <div class="vq-dashboard-card-desc">Account creation date</div>
+      </div>
+
+      <div class="vq-dashboard-card">
+        <div class="vq-dashboard-card-title">Last Login</div>
+        <div class="vq-dashboard-card-value" style="font-size: 20px;">{{.LastLogin}}</div>
+        <div class="vq-dashboard-card-desc">Most recent authentication</div>
+      </div>
+    </div>
+
+    <div style="margin-top: 40px;">
+      <div class="vq-dashboard-card" style="max-width: 600px;">
+        <div class="vq-dashboard-card-title">Privacy Guarantee</div>
+        <p style="color: var(--vq-gray-300); line-height: 1.6; font-size: 14px;">
+          {{.PlatformName}} has <span class="accent" style="font-weight: 600;">zero knowledge</span> of your real identity.
+          Your account is tied only to a cryptographic pseudonym (SPK) that cannot be linked to your identity on any other platform.
+          Even if {{.PlatformName}}'s database were breached, no personal information could be extracted.
+        </p>
+      </div>
+    </div>
+  </div>
 </body>
 </html>

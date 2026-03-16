@@ -1,0 +1,187 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Veriqid</title>
+  <link rel="stylesheet" href="popup.css">
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
+</head>
+<body>
+  <div class="container">
+
+    <!-- ======== Header ======== -->
+    <header class="header">
+      <div class="header-left">
+        <div class="logo-icon">🛡️</div>
+        <h1>Veriqid</h1>
+      </div>
+      <div class="status-indicator">
+        <span class="status-dot" id="status-dot"></span>
+      </div>
+    </header>
+
+    <!-- ======== Setup Screen (first launch) ======== -->
+    <div id="screen-setup" class="screen" style="display: none;">
+      <div class="screen-intro">
+        <h2>Welcome to <span class="accent">Veriqid</span></h2>
+        <p>Privacy-first identity for children. Let's get set up.</p>
+      </div>
+
+      <div class="form-group">
+        <label for="setup-bridge-url">Bridge URL</label>
+        <input type="text" id="setup-bridge-url" class="input" value="http://127.0.0.1:9090" placeholder="http://127.0.0.1:9090">
+        <span class="help-text">Local bridge server address</span>
+      </div>
+
+      <div class="form-group">
+        <label for="setup-keypath">Identity Key Path</label>
+        <input type="text" id="setup-keypath" class="input" placeholder="./key1" value="./key1">
+        <span class="help-text">Path to master secret key (relative to bridge directory)</span>
+      </div>
+
+      <div class="form-group">
+        <label for="setup-ethkey">Ethereum Private Key</label>
+        <input type="password" id="setup-ethkey" class="input" placeholder="Ganache key without 0x prefix">
+        <span class="help-text">For on-chain registration (test key only)</span>
+      </div>
+
+      <button id="btn-setup-save" class="btn-primary">Save & Connect</button>
+      <div id="setup-error" class="error-box" style="display: none;"></div>
+    </div>
+
+    <!-- ======== Main Screen (after setup) ======== -->
+    <div id="screen-main" class="screen" style="display: none;">
+
+      <!-- Bridge Status Card -->
+      <div class="card">
+        <div class="card-header">
+          <span>Bridge Status</span>
+          <button id="btn-refresh" class="btn-icon" title="Refresh status">↻</button>
+        </div>
+        <div class="card-body">
+          <div class="stat-row">
+            <span class="stat-label">Status</span>
+            <span id="bridge-status" class="stat-value">Checking...</span>
+          </div>
+          <div class="stat-row">
+            <span class="stat-label">Contract</span>
+            <span id="bridge-contract" class="stat-value mono">—</span>
+          </div>
+          <div class="stat-row">
+            <span class="stat-label">Identities</span>
+            <span id="bridge-id-count" class="stat-value">—</span>
+          </div>
+          <div class="stat-row">
+            <span class="stat-label">Version</span>
+            <span id="bridge-version" class="stat-value">—</span>
+          </div>
+        </div>
+      </div>
+
+      <!-- Active Identity Card -->
+      <div class="card">
+        <div class="card-header">
+          <span>Active Identity</span>
+        </div>
+        <div class="card-body">
+          <div class="stat-row">
+            <span class="stat-label">Key File</span>
+            <span id="active-keypath" class="stat-value mono">—</span>
+          </div>
+          <div class="identity-actions">
+            <button id="btn-create-identity" class="btn-secondary btn-sm">+ New Identity</button>
+            <button id="btn-change-key" class="btn-secondary btn-sm">Change Key</button>
+          </div>
+        </div>
+      </div>
+
+      <!-- Settings Card -->
+      <div class="card">
+        <div class="card-header">
+          <span>Settings</span>
+        </div>
+        <div class="card-body">
+          <div class="toggle-row">
+            <div class="toggle-info">
+              <label for="toggle-autofill">Auto-fill forms</label>
+              <span class="toggle-desc">Fill proof fields automatically when a Veriqid form is detected</span>
+            </div>
+            <input type="checkbox" id="toggle-autofill" class="toggle" checked>
+          </div>
+          <div class="divider"></div>
+          <div class="toggle-row">
+            <div class="toggle-info">
+              <label for="toggle-autosubmit">Auto-submit after fill</label>
+              <span class="toggle-desc">Submit the form automatically once fields are filled</span>
+            </div>
+            <input type="checkbox" id="toggle-autosubmit" class="toggle">
+          </div>
+        </div>
+      </div>
+
+      <!-- Footer -->
+      <div class="footer-actions">
+        <button id="btn-settings" class="btn-link">Change Bridge Settings</button>
+        <span class="footer-version" id="footer-version">v0.5.0</span>
+      </div>
+    </div>
+
+    <!-- ======== Create Identity Screen ======== -->
+    <div id="screen-create" class="screen" style="display: none;">
+      <div class="screen-intro">
+        <h2>Create <span class="accent">Identity</span></h2>
+        <p>Generate a new master key and register it on-chain.</p>
+      </div>
+
+      <div class="form-group">
+        <label for="create-keypath">Key File Path</label>
+        <input type="text" id="create-keypath" class="input" placeholder="./key3">
+        <span class="help-text">A new key file will be created at this path</span>
+      </div>
+
+      <div class="btn-row">
+        <button id="btn-create-confirm" class="btn-primary">Create</button>
+        <button id="btn-create-cancel" class="btn-secondary">Cancel</button>
+      </div>
+
+      <div id="create-result" class="result-box" style="display: none;">
+        <div class="result-header">Identity Created</div>
+        <div class="stat-row">
+          <span class="stat-label">MPK</span>
+          <span id="create-mpk" class="stat-value mono"></span>
+        </div>
+        <div class="stat-row">
+          <span class="stat-label">On-Chain Index</span>
+          <span id="create-index" class="stat-value"></span>
+        </div>
+        <button id="btn-create-use" class="btn-accent btn-sm" style="margin-top: 10px; width: 100%;">Use This Identity</button>
+      </div>
+
+      <div id="create-error" class="error-box" style="display: none;"></div>
+    </div>
+
+    <!-- ======== Change Key Screen ======== -->
+    <div id="screen-change-key" class="screen" style="display: none;">
+      <div class="screen-intro">
+        <h2>Change <span class="accent">Key</span></h2>
+        <p>Switch to a different identity key file.</p>
+      </div>
+
+      <div class="form-group">
+        <label for="change-keypath">New Key File Path</label>
+        <input type="text" id="change-keypath" class="input" placeholder="./key2">
+        <span class="help-text">Must be an existing key file created previously</span>
+      </div>
+
+      <div class="btn-row">
+        <button id="btn-change-confirm" class="btn-primary">Switch</button>
+        <button id="btn-change-cancel" class="btn-secondary">Cancel</button>
+      </div>
+    </div>
+
+  </div>
+
+  <script src="popup.js"></script>
+</body>
+</html>

@@ -54,6 +54,47 @@ func NewStore(dbPath string) (*Store, error) {
 		return nil, fmt.Errorf("failed to create schema: %w", err)
 	}
 
+	// Phase 6: Parent dashboard tables
+	parentSchema := `
+	CREATE TABLE IF NOT EXISTS parents (
+		id              INTEGER PRIMARY KEY AUTOINCREMENT,
+		email           TEXT UNIQUE,
+		phone           TEXT UNIQUE,
+		password_hash   TEXT,
+		eth_address     TEXT NOT NULL UNIQUE,
+		eth_privkey_enc TEXT NOT NULL,
+		created_at      DATETIME DEFAULT CURRENT_TIMESTAMP,
+		last_login      DATETIME
+	);
+
+	CREATE TABLE IF NOT EXISTS children (
+		id              INTEGER PRIMARY KEY AUTOINCREMENT,
+		parent_id       INTEGER NOT NULL REFERENCES parents(id),
+		display_name    TEXT NOT NULL,
+		age_bracket     INTEGER NOT NULL DEFAULT 0,
+		msk_enc         TEXT,
+		mpk_hex         TEXT,
+		contract_index  INTEGER,
+		status          TEXT DEFAULT 'pending',
+		verified_at     DATETIME,
+		revoked_at      DATETIME,
+		created_at      DATETIME DEFAULT CURRENT_TIMESTAMP
+	);
+
+	CREATE TABLE IF NOT EXISTS otp_codes (
+		id          INTEGER PRIMARY KEY AUTOINCREMENT,
+		phone       TEXT NOT NULL,
+		code        TEXT NOT NULL,
+		expires_at  DATETIME NOT NULL,
+		used        BOOLEAN DEFAULT 0,
+		created_at  DATETIME DEFAULT CURRENT_TIMESTAMP
+	);
+	`
+
+	if _, err := db.Exec(parentSchema); err != nil {
+		return nil, fmt.Errorf("failed to create parent tables: %w", err)
+	}
+
 	return &Store{db: db}, nil
 }
 

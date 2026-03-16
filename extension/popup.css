@@ -1,0 +1,526 @@
+/* ============================================================
+   Veriqid Extension Popup — Design System
+   Dark teal + lime accent, pill buttons, stat cards
+   ============================================================ */
+
+:root {
+  /* ---- Primary ---- */
+  --vq-dark:         #0A1F2F;
+  --vq-dark-mid:     #0F2B3C;
+  --vq-dark-light:   #153A4F;
+  --vq-accent:       #B8F12A;
+  --vq-accent-hover: #A3D925;
+  --vq-accent-dim:   rgba(184, 241, 42, 0.12);
+
+  /* ---- Neutrals ---- */
+  --vq-white:        #FFFFFF;
+  --vq-gray-100:     #E2E8F0;
+  --vq-gray-200:     #CBD5E1;
+  --vq-gray-300:     #94A3B8;
+  --vq-gray-400:     #64748B;
+  --vq-gray-500:     #475569;
+
+  /* ---- Semantic ---- */
+  --vq-success:      #4ADE80;
+  --vq-error:        #F87171;
+  --vq-warning:      #FBBF24;
+
+  /* ---- Misc ---- */
+  --vq-border:       rgba(255, 255, 255, 0.06);
+  --vq-border-hover: rgba(255, 255, 255, 0.12);
+  --vq-radius-sm:    8px;
+  --vq-radius-md:    12px;
+  --vq-radius-full:  9999px;
+  --vq-font:         'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+  --vq-mono:         'SF Mono', 'Fira Code', 'Consolas', monospace;
+}
+
+/* ---- Reset ---- */
+
+*, *::before, *::after {
+  margin: 0;
+  padding: 0;
+  box-sizing: border-box;
+}
+
+/* ---- Body ---- */
+
+body {
+  width: 380px;
+  min-height: 240px;
+  font-family: var(--vq-font);
+  font-size: 13px;
+  color: var(--vq-gray-200);
+  background: var(--vq-dark);
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+}
+
+/* ============================================================
+   HEADER
+   ============================================================ */
+
+.header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 14px 20px;
+  border-bottom: 1px solid var(--vq-border);
+}
+
+.header-left {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+
+.logo-icon {
+  width: 34px;
+  height: 34px;
+  background: var(--vq-accent-dim);
+  border-radius: var(--vq-radius-sm);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 18px;
+}
+
+.header h1 {
+  font-size: 17px;
+  font-weight: 700;
+  color: var(--vq-white);
+  letter-spacing: -0.3px;
+}
+
+.status-indicator {
+  display: flex;
+  align-items: center;
+}
+
+.status-dot {
+  width: 10px;
+  height: 10px;
+  border-radius: 50%;
+  background: var(--vq-gray-400);
+  transition: background 0.3s ease;
+}
+
+.status-dot.connected {
+  background: var(--vq-success);
+  box-shadow: 0 0 6px rgba(74, 222, 128, 0.4);
+}
+
+.status-dot.disconnected {
+  background: var(--vq-error);
+  box-shadow: 0 0 6px rgba(248, 113, 113, 0.4);
+}
+
+/* ============================================================
+   SCREENS
+   ============================================================ */
+
+.screen {
+  padding: 18px 20px;
+}
+
+.screen-intro {
+  margin-bottom: 20px;
+}
+
+.screen-intro h2 {
+  font-size: 17px;
+  font-weight: 700;
+  color: var(--vq-white);
+  margin-bottom: 4px;
+}
+
+.screen-intro p {
+  font-size: 12px;
+  color: var(--vq-gray-300);
+  line-height: 1.5;
+}
+
+.accent {
+  color: var(--vq-accent);
+}
+
+/* ============================================================
+   CARDS
+   ============================================================ */
+
+.card {
+  background: var(--vq-dark-mid);
+  border: 1px solid var(--vq-border);
+  border-radius: var(--vq-radius-md);
+  margin-bottom: 12px;
+  overflow: hidden;
+  transition: border-color 0.2s ease;
+}
+
+.card:hover {
+  border-color: var(--vq-border-hover);
+}
+
+.card-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 10px 16px;
+  font-weight: 600;
+  font-size: 11px;
+  text-transform: uppercase;
+  letter-spacing: 0.6px;
+  color: var(--vq-gray-300);
+  border-bottom: 1px solid var(--vq-border);
+}
+
+.card-body {
+  padding: 14px 16px;
+}
+
+/* ---- Stat Rows ---- */
+
+.stat-row {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: 5px 0;
+}
+
+.stat-label {
+  color: var(--vq-gray-400);
+  font-size: 12px;
+  font-weight: 500;
+}
+
+.stat-value {
+  color: var(--vq-white);
+  font-size: 12px;
+  font-weight: 500;
+  max-width: 210px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.mono {
+  font-family: var(--vq-mono);
+  font-size: 11px;
+}
+
+/* ---- Identity Actions ---- */
+
+.identity-actions {
+  display: flex;
+  gap: 8px;
+  margin-top: 12px;
+}
+
+/* ============================================================
+   FORMS
+   ============================================================ */
+
+.form-group {
+  margin-bottom: 16px;
+}
+
+.form-group label {
+  display: block;
+  font-weight: 600;
+  font-size: 12px;
+  color: var(--vq-gray-300);
+  margin-bottom: 6px;
+}
+
+.input {
+  width: 100%;
+  padding: 11px 14px;
+  background: var(--vq-dark-light);
+  border: 1.5px solid rgba(255, 255, 255, 0.1);
+  border-radius: var(--vq-radius-sm);
+  color: var(--vq-white);
+  font-size: 13px;
+  font-family: var(--vq-font);
+  transition: border-color 0.2s ease, box-shadow 0.2s ease;
+}
+
+.input::placeholder {
+  color: var(--vq-gray-400);
+}
+
+.input:focus {
+  outline: none;
+  border-color: var(--vq-accent);
+  box-shadow: 0 0 0 3px rgba(184, 241, 42, 0.12);
+}
+
+.help-text {
+  display: block;
+  font-size: 11px;
+  color: var(--vq-gray-400);
+  margin-top: 4px;
+  line-height: 1.4;
+}
+
+/* ============================================================
+   BUTTONS
+   ============================================================ */
+
+/* Primary — lime pill, NOT glassy */
+.btn-primary {
+  display: block;
+  width: 100%;
+  padding: 12px 24px;
+  background: var(--vq-accent);
+  color: var(--vq-dark);
+  font-weight: 600;
+  font-size: 14px;
+  border: none;
+  border-radius: var(--vq-radius-full);
+  cursor: pointer;
+  font-family: var(--vq-font);
+  transition: background 0.2s ease, transform 0.1s ease;
+}
+
+.btn-primary:hover {
+  background: var(--vq-accent-hover);
+  transform: translateY(-1px);
+}
+
+.btn-primary:active {
+  transform: translateY(0);
+}
+
+.btn-primary:disabled {
+  background: var(--vq-gray-500);
+  color: var(--vq-gray-300);
+  cursor: not-allowed;
+  transform: none;
+}
+
+/* Secondary — outline pill */
+.btn-secondary {
+  display: inline-block;
+  padding: 8px 18px;
+  background: transparent;
+  color: var(--vq-gray-200);
+  font-weight: 500;
+  font-size: 13px;
+  border: 1.5px solid rgba(255, 255, 255, 0.15);
+  border-radius: var(--vq-radius-full);
+  cursor: pointer;
+  font-family: var(--vq-font);
+  transition: border-color 0.2s ease, color 0.2s ease;
+}
+
+.btn-secondary:hover {
+  border-color: var(--vq-accent);
+  color: var(--vq-accent);
+}
+
+/* Accent — smaller lime for inline actions */
+.btn-accent {
+  display: inline-block;
+  padding: 8px 18px;
+  background: var(--vq-accent);
+  color: var(--vq-dark);
+  font-weight: 600;
+  font-size: 12px;
+  border: none;
+  border-radius: var(--vq-radius-full);
+  cursor: pointer;
+  font-family: var(--vq-font);
+  transition: background 0.2s ease;
+}
+
+.btn-accent:hover {
+  background: var(--vq-accent-hover);
+}
+
+/* Small modifier */
+.btn-sm {
+  padding: 7px 14px;
+  font-size: 12px;
+}
+
+/* Icon button (refresh, etc.) */
+.btn-icon {
+  background: none;
+  border: none;
+  cursor: pointer;
+  font-size: 16px;
+  color: var(--vq-gray-300);
+  padding: 3px 7px;
+  border-radius: 6px;
+  transition: background 0.15s ease, color 0.15s ease;
+}
+
+.btn-icon:hover {
+  background: rgba(255, 255, 255, 0.06);
+  color: var(--vq-white);
+}
+
+/* Text link button */
+.btn-link {
+  background: none;
+  border: none;
+  color: var(--vq-gray-300);
+  font-size: 12px;
+  cursor: pointer;
+  font-family: var(--vq-font);
+  transition: color 0.2s ease;
+}
+
+.btn-link:hover {
+  color: var(--vq-accent);
+}
+
+/* Button row — side by side */
+.btn-row {
+  display: flex;
+  gap: 10px;
+  margin-top: 8px;
+}
+
+.btn-row .btn-primary {
+  flex: 1;
+}
+
+.btn-row .btn-secondary {
+  flex: 1;
+  text-align: center;
+}
+
+/* ============================================================
+   TOGGLES
+   ============================================================ */
+
+.toggle-row {
+  display: flex;
+  justify-content: space-between;
+  align-items: flex-start;
+  padding: 8px 0;
+  gap: 12px;
+}
+
+.toggle-info {
+  flex: 1;
+}
+
+.toggle-info label {
+  display: block;
+  font-size: 13px;
+  font-weight: 500;
+  color: var(--vq-gray-100);
+  cursor: pointer;
+}
+
+.toggle-desc {
+  display: block;
+  font-size: 11px;
+  color: var(--vq-gray-400);
+  margin-top: 2px;
+  line-height: 1.4;
+}
+
+.toggle {
+  width: 18px;
+  height: 18px;
+  accent-color: var(--vq-accent);
+  cursor: pointer;
+  margin-top: 2px;
+  flex-shrink: 0;
+}
+
+.divider {
+  height: 1px;
+  background: var(--vq-border);
+  margin: 4px 0;
+}
+
+/* ============================================================
+   FEEDBACK — Error / Result Boxes
+   ============================================================ */
+
+.error-box {
+  font-size: 12px;
+  margin-top: 12px;
+  padding: 10px 14px;
+  background: rgba(248, 113, 113, 0.08);
+  border: 1px solid rgba(248, 113, 113, 0.25);
+  border-radius: var(--vq-radius-sm);
+  color: var(--vq-error);
+  line-height: 1.5;
+}
+
+.result-box {
+  margin-top: 14px;
+  padding: 14px 16px;
+  background: rgba(184, 241, 42, 0.06);
+  border: 1px solid rgba(184, 241, 42, 0.15);
+  border-radius: var(--vq-radius-sm);
+}
+
+.result-header {
+  font-size: 12px;
+  font-weight: 600;
+  color: var(--vq-accent);
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+  margin-bottom: 10px;
+}
+
+/* ============================================================
+   FOOTER
+   ============================================================ */
+
+.footer-actions {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding-top: 8px;
+}
+
+.footer-version {
+  font-size: 11px;
+  color: var(--vq-gray-400);
+  font-family: var(--vq-mono);
+}
+
+/* ============================================================
+   ANIMATIONS
+   ============================================================ */
+
+@keyframes fadeIn {
+  from { opacity: 0; transform: translateY(4px); }
+  to   { opacity: 1; transform: translateY(0); }
+}
+
+.screen {
+  animation: fadeIn 0.2s ease;
+}
+
+/* Spinner on buttons */
+.btn-primary.loading {
+  position: relative;
+  color: transparent;
+  pointer-events: none;
+}
+
+.btn-primary.loading::after {
+  content: "";
+  position: absolute;
+  top: 50%;
+  left: 50%;
+  width: 18px;
+  height: 18px;
+  margin: -9px 0 0 -9px;
+  border: 2px solid var(--vq-dark);
+  border-top-color: transparent;
+  border-radius: 50%;
+  animation: spin 0.6s linear infinite;
+}
+
+@keyframes spin {
+  to { transform: rotate(360deg); }
+}

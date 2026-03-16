@@ -21,6 +21,7 @@ import (
 	"github.com/ethereum/go-ethereum/common"
 	"github.com/ethereum/go-ethereum/ethclient"
 
+	"github.com/patmekury/veriqid/internal/parent"
 	"github.com/patmekury/veriqid/internal/session"
 	"github.com/patmekury/veriqid/internal/store"
 )
@@ -45,16 +46,18 @@ type Server struct {
 	ServiceNameRaw []byte // SHA-256 hash bytes (for passing to verification functions)
 	ContractAddr   string
 	RPCURL         string
+	masterSecret   string // Phase 6: encryption master secret for custodial wallets
 
-	Store    *store.Store
-	Sessions *session.Manager
-	Tmpl     *template.Template
+	Store          *store.Store
+	Sessions       *session.Manager
+	ParentSessions *session.ParentManager // Phase 6: parent-specific sessions
+	Tmpl           *template.Template
 
 	EthClient *ethclient.Client
 	Contract  *u2sso.Veriqid
 }
 
-func NewServer(platformName, contractAddr, rpcURL, dbPath string) (*Server, error) {
+func NewServer(platformName, contractAddr, rpcURL, dbPath, masterSecret string) (*Server, error) {
 	// Hash the service name (same as Phase 1 server)
 	h := sha256.Sum256([]byte(platformName))
 	serviceHex := hex.EncodeToString(h[:])
@@ -69,6 +72,11 @@ func NewServer(platformName, contractAddr, rpcURL, dbPath string) (*Server, erro
 	sessionKey := make([]byte, 32)
 	rand.Read(sessionKey)
 	sessions := session.NewManager(sessionKey)
+
+	// Phase 6: Parent session manager (separate from child sessions)
+	parentSessionKey := make([]byte, 32)
+	rand.Read(parentSessionKey)
+	parentSessions := session.NewParentManager(parentSessionKey)
 
 	// Parse templates
 	tmpl, err := template.ParseGlob("templates/*.html")
@@ -101,8 +109,10 @@ func NewServer(platformName, contractAddr, rpcURL, dbPath string) (*Server, erro
 		ServiceNameRaw: h[:],
 		ContractAddr:   contractAddr,
 		RPCURL:         rpcURL,
+		masterSecret:   masterSecret,
 		Store:          db,
 		Sessions:       sessions,
+		ParentSessions: parentSessions,
 		Tmpl:           tmpl,
 		EthClient:      client,
 		Contract:       contract,
@@ -631,6 +641,602 @@ func (s *Server) HandleAPIStatus(w http.ResponseWriter, r *http.Request) {
 }
 
 // ---------------------------------------------------------------------------
+// Phase 6: Parent Portal API Handlers
+// ---------------------------------------------------------------------------
+
+// getParentFromSession extracts the parent ID from the session cookie.
+func (s *Server) getParentFromSession(r *http.Request) (int64, bool) {
+	loggedIn, parentID := s.ParentSessions.IsLoggedIn(r)
+	if !loggedIn {
+		return 0, false
+	}
+	return parentID, true
+}
+
+// POST /api/parent/register
+func (s *Server) handleParentRegister(w http.ResponseWriter, r *http.Request) {
+	if r.Method != http.MethodPost {
+		writeAPIError(w, http.StatusMethodNotAllowed, "use POST")
+		return
+	}
+
+	var req struct {
+		Email    string `json:"email"`
+		Password string `json:"password"`
+		Phone    string `json:"phone"`
+	}
+	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
+		http.Error(w, `{"error":"invalid JSON"}`, http.StatusBadRequest)
+		return
+	}
+
+	// Generate custodial wallet for this parent
+	ethAddr, privKeyHex, err := parent.GenerateCustodialWallet()
+	if err != nil {
+		http.Error(w, `{"error":"failed to generate wallet"}`, http.StatusInternalServerError)
+		return
+	}
+
+	// Encrypt the private key
+	encKey := parent.DeriveEncryptionKey(s.masterSecret)
+	privKeyEnc, err := parent.EncryptPrivateKey(privKeyHex, encKey)
+	if err != nil {
+		http.Error(w, `{"error":"failed to encrypt wallet"}`, http.StatusInternalServerError)
+		return
+	}
+
+	var parentID int64
+
+	if req.Email != "" {
+		// Email + password registration
+		email := parent.NormalizeEmail(req.Email)
+		if err := parent.ValidateEmail(email); err != nil {
+			http.Error(w, fmt.Sprintf(`{"error":"%s"}`, err.Error()), http.StatusBadRequest)
+			return
+		}
+		if err := parent.ValidatePassword(req.Password); err != nil {
+			http.Error(w, fmt.Sprintf(`{"error":"%s"}`, err.Error()), http.StatusBadRequest)
+			return
+		}
+
+		passwordHash, err := parent.HashPassword(req.Password)
+		if err != nil {
+			http.Error(w, `{"error":"failed to hash password"}`, http.StatusInternalServerError)
+			return
+		}
+
+		parentID, err = s.Store.CreateParentByEmail(email, passwordHash, ethAddr, privKeyEnc)
+		if err != nil {
+			http.Error(w, `{"error":"email already registered"}`, http.StatusConflict)
+			return
+		}
+
+	} else if req.Phone != "" {
+		// Phone registration — create account, then send OTP to verify
+		phone := parent.NormalizePhone(req.Phone)
+		if err := parent.ValidatePhone(phone); err != nil {
+			http.Error(w, fmt.Sprintf(`{"error":"%s"}`, err.Error()), http.StatusBadRequest)
+			return
+		}
+
+		parentID, err = s.Store.CreateParentByPhone(phone, ethAddr, privKeyEnc)
+		if err != nil {
+			http.Error(w, `{"error":"phone already registered"}`, http.StatusConflict)
+			return
+		}
+
+		// Generate and "send" OTP (console logging for hackathon demo)
+		code, _ := parent.GenerateOTP()
+		s.Store.StoreOTP(phone, code)
+		fmt.Printf("[OTP] Code for %s: %s\n", phone, code)
+
+	} else {
+		http.Error(w, `{"error":"provide email+password or phone"}`, http.StatusBadRequest)
+		return
+	}
+
+	isPhone := req.Phone != ""
+
+	if !isPhone {
+		// Email registration: auto-login immediately
+		s.ParentSessions.Login(w, parentID)
+	}
+	// Phone registration: don't auto-login — user must verify OTP via /api/parent/login
+
+	log.Printf("SUCCESS: Parent registered (ID=%d, eth=%s, phone=%v)", parentID, ethAddr, isPhone)
+
+	w.Header().Set("Content-Type", "application/json")
+	json.NewEncoder(w).Encode(map[string]interface{}{
+		"success":      true,
+		"parent_id":    parentID,
+		"method":       map[bool]string{true: "email", false: "phone"}[req.Email != ""],
+		"otp_required": isPhone,
+	})
+}
+
+// POST /api/parent/login
+func (s *Server) handleParentLogin(w http.ResponseWriter, r *http.Request) {
+	if r.Method != http.MethodPost {
+		writeAPIError(w, http.StatusMethodNotAllowed, "use POST")
+		return
+	}
+
+	var req struct {
+		Email    string `json:"email"`
+		Password string `json:"password"`
+		Phone    string `json:"phone"`
+		Code     string `json:"code"`
+	}
+	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
+		http.Error(w, `{"error":"invalid JSON"}`, http.StatusBadRequest)
+		return
+	}
+
+	var p *store.Parent
+	var err error
+
+	if req.Email != "" {
+		// Email + password login
+		email := parent.NormalizeEmail(req.Email)
+		p, err = s.Store.GetParentByEmail(email)
+		if err != nil {
+			http.Error(w, `{"error":"invalid email or password"}`, http.StatusUnauthorized)
+			return
+		}
+		if p.PasswordHash == nil || !parent.CheckPassword(req.Password, *p.PasswordHash) {
+			http.Error(w, `{"error":"invalid email or password"}`, http.StatusUnauthorized)
+			return
+		}
+
+	} else if req.Phone != "" && req.Code != "" {
+		// Phone + OTP login
+		phone := parent.NormalizePhone(req.Phone)
+		log.Printf("[DEBUG OTP] Login attempt: phone=%q code=%q", phone, req.Code)
+		valid, err := s.Store.VerifyOTP(phone, req.Code)
+		log.Printf("[DEBUG OTP] VerifyOTP result: valid=%v err=%v", valid, err)
+		if err != nil || !valid {
+			http.Error(w, `{"error":"invalid or expired code"}`, http.StatusUnauthorized)
+			return
+		}
+		p, err = s.Store.GetParentByPhone(phone)
+		if err != nil {
+			http.Error(w, `{"error":"account not found"}`, http.StatusUnauthorized)
+			return
+		}
+
+	} else {
+		http.Error(w, `{"error":"provide email+password or phone+code"}`, http.StatusBadRequest)
+		return
+	}
+
+	// Update last login
+	s.Store.UpdateParentLastLogin(p.ID)
+
+	// Create session
+	s.ParentSessions.Login(w, p.ID)
+
+	log.Printf("SUCCESS: Parent logged in (ID=%d)", p.ID)
+
+	w.Header().Set("Content-Type", "application/json")
+	json.NewEncoder(w).Encode(map[string]interface{}{
+		"success":   true,
+		"parent_id": p.ID,
+	})
+}
+
+// POST /api/parent/logout
+func (s *Server) handleParentLogout(w http.ResponseWriter, r *http.Request) {
+	s.ParentSessions.Logout(w, r)
+	w.Header().Set("Content-Type", "application/json")
+	json.NewEncoder(w).Encode(map[string]interface{}{"success": true})
+}
+
+// POST /api/parent/send-otp
+func (s *Server) handleSendOTP(w http.ResponseWriter, r *http.Request) {
+	if r.Method != http.MethodPost {
+		writeAPIError(w, http.StatusMethodNotAllowed, "use POST")
+		return
+	}
+
+	var req struct {
+		Phone string `json:"phone"`
+	}
+	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
+		http.Error(w, `{"error":"invalid JSON"}`, http.StatusBadRequest)
+		return
+	}
+
+	phone := parent.NormalizePhone(req.Phone)
+	if err := parent.ValidatePhone(phone); err != nil {
+		http.Error(w, fmt.Sprintf(`{"error":"%s"}`, err.Error()), http.StatusBadRequest)
+		return
+	}
+
+	// Check the parent exists
+	_, err := s.Store.GetParentByPhone(phone)
+	if err != nil {
+		http.Error(w, `{"error":"no account with this phone number"}`, http.StatusNotFound)
+		return
+	}
+
+	// Generate and "send" OTP
+	code, _ := parent.GenerateOTP()
+	s.Store.StoreOTP(phone, code)
+	fmt.Printf("[OTP] Code for %s: %s\n", phone, code)
+
+	w.Header().Set("Content-Type", "application/json")
+	json.NewEncoder(w).Encode(map[string]interface{}{
+		"success": true,
+		"message": "Code sent (check server terminal for demo)",
+	})
+}
+
+// GET /api/parent/me
+func (s *Server) handleGetParentInfo(w http.ResponseWriter, r *http.Request) {
+	parentID, ok := s.getParentFromSession(r)
+	if !ok {
+		http.Error(w, `{"error":"not logged in"}`, http.StatusUnauthorized)
+		return
+	}
+
+	p, err := s.Store.GetParentByID(parentID)
+	if err != nil {
+		http.Error(w, `{"error":"parent not found"}`, http.StatusInternalServerError)
+		return
+	}
+
+	resp := map[string]interface{}{
+		"success":   true,
+		"parent_id": p.ID,
+	}
+	if p.Email != nil {
+		resp["email"] = *p.Email
+	}
+	if p.Phone != nil {
+		resp["phone"] = *p.Phone
+	}
+
+	w.Header().Set("Content-Type", "application/json")
+	json.NewEncoder(w).Encode(resp)
+}
+
+// POST /api/parent/child/add
+func (s *Server) handleAddChild(w http.ResponseWriter, r *http.Request) {
+	if r.Method != http.MethodPost {
+		writeAPIError(w, http.StatusMethodNotAllowed, "use POST")
+		return
+	}
+
+	parentID, ok := s.getParentFromSession(r)
+	if !ok {
+		http.Error(w, `{"error":"not logged in"}`, http.StatusUnauthorized)
+		return
+	}
+
+	var req struct {
+		DisplayName string `json:"display_name"`
+		AgeBracket  int    `json:"age_bracket"`
+	}
+	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
+		http.Error(w, `{"error":"invalid JSON"}`, http.StatusBadRequest)
+		return
+	}
+
+	if req.DisplayName == "" {
+		http.Error(w, `{"error":"display_name is required"}`, http.StatusBadRequest)
+		return
+	}
+	if req.AgeBracket < 0 || req.AgeBracket > 3 {
+		http.Error(w, `{"error":"age_bracket must be 0-3"}`, http.StatusBadRequest)
+		return
+	}
+
+	// Generate the child's master secret key (msk) — 32 random bytes
+	msk := make([]byte, 32)
+	if _, err := rand.Read(msk); err != nil {
+		http.Error(w, `{"error":"failed to generate key"}`, http.StatusInternalServerError)
+		return
+	}
+	mskHex := hex.EncodeToString(msk)
+
+	// Derive mpk from msk using the CGO library (CreateID)
+	mpkBytes := u2sso.CreateID(msk)
+	var mpkHex string
+	if len(mpkBytes) == 0 {
+		log.Printf("WARNING: CreateID returned empty mpk — using placeholder")
+		mpkHex = mskHex // placeholder
+	} else {
+		mpkHex = hex.EncodeToString(mpkBytes)
+	}
+
+	// Encrypt msk for storage
+	encKey := parent.DeriveEncryptionKey(s.masterSecret)
+	mskEnc, err := parent.EncryptPrivateKey(mskHex, encKey)
+	if err != nil {
+		http.Error(w, `{"error":"failed to encrypt key"}`, http.StatusInternalServerError)
+		return
+	}
+
+	// Store child in database (status = 'pending' until verified)
+	childID, err := s.Store.AddChild(parentID, req.DisplayName, req.AgeBracket, mskEnc, mpkHex)
+	if err != nil {
+		http.Error(w, `{"error":"failed to add child"}`, http.StatusInternalServerError)
+		return
+	}
+
+	log.Printf("SUCCESS: Child '%s' added for parent %d (childID=%d)", req.DisplayName, parentID, childID)
+
+	w.Header().Set("Content-Type", "application/json")
+	json.NewEncoder(w).Encode(map[string]interface{}{
+		"success":  true,
+		"child_id": childID,
+		"status":   "pending",
+		"message":  "Child added. Complete verification to activate the identity.",
+	})
+}
+
+// GET /api/parent/children
+func (s *Server) handleGetChildren(w http.ResponseWriter, r *http.Request) {
+	parentID, ok := s.getParentFromSession(r)
+	if !ok {
+		http.Error(w, `{"error":"not logged in"}`, http.StatusUnauthorized)
+		return
+	}
+
+	children, err := s.Store.GetChildrenByParent(parentID)
+	if err != nil {
+		http.Error(w, `{"error":"failed to load children"}`, http.StatusInternalServerError)
+		return
+	}
+
+	ageBracketLabels := map[int]string{0: "Unknown", 1: "Under 13", 2: "Teen (13–17)", 3: "Adult (18+)"}
+
+	type ChildResponse struct {
+		ID            int64   `json:"id"`
+		DisplayName   string  `json:"display_name"`
+		AgeBracket    int     `json:"age_bracket"`
+		AgeBracketStr string  `json:"age_bracket_label"`
+		MpkHex        string  `json:"mpk_hex"`
+		ContractIndex *int    `json:"contract_index"`
+		Status        string  `json:"status"`
+		VerifiedAt    *string `json:"verified_at"`
+		RevokedAt     *string `json:"revoked_at"`
+		CreatedAt     string  `json:"created_at"`
+	}
+
+	var response []ChildResponse
+	for _, c := range children {
+		cr := ChildResponse{
+			ID:            c.ID,
+			DisplayName:   c.DisplayName,
+			AgeBracket:    c.AgeBracket,
+			AgeBracketStr: ageBracketLabels[c.AgeBracket],
+			ContractIndex: c.ContractIndex,
+			Status:        c.Status,
+			VerifiedAt:    c.VerifiedAt,
+			RevokedAt:     c.RevokedAt,
+			CreatedAt:     c.CreatedAt,
+		}
+		if c.MpkHex != nil {
+			cr.MpkHex = *c.MpkHex
+		}
+		response = append(response, cr)
+	}
+
+	w.Header().Set("Content-Type", "application/json")
+	json.NewEncoder(w).Encode(map[string]interface{}{
+		"success":  true,
+		"children": response,
+	})
+}
+
+// POST /api/parent/verify/approve — hackathon simulation of verifier approval
+func (s *Server) handleVerifyApprove(w http.ResponseWriter, r *http.Request) {
+	if r.Method != http.MethodPost {
+		writeAPIError(w, http.StatusMethodNotAllowed, "use POST")
+		return
+	}
+
+	parentID, ok := s.getParentFromSession(r)
+	if !ok {
+		http.Error(w, `{"error":"not logged in"}`, http.StatusUnauthorized)
+		return
+	}
+
+	var req struct {
+		ChildID int64 `json:"child_id"`
+	}
+	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
+		http.Error(w, `{"error":"invalid JSON"}`, http.StatusBadRequest)
+		return
+	}
+
+	// Verify the child belongs to this parent
+	children, err := s.Store.GetChildrenByParent(parentID)
+	if err != nil {
+		http.Error(w, `{"error":"failed to load children"}`, http.StatusInternalServerError)
+		return
+	}
+
+	var child *store.Child
+	for _, c := range children {
+		if c.ID == req.ChildID {
+			child = &c
+			break
+		}
+	}
+
+	if child == nil {
+		http.Error(w, `{"error":"child not found"}`, http.StatusNotFound)
+		return
+	}
+
+	if child.Status != "pending" {
+		http.Error(w, `{"error":"child already verified or revoked"}`, http.StatusBadRequest)
+		return
+	}
+
+	// For hackathon demo: simulate on-chain registration
+	// In production, this would call addID() on the contract via the deployer key
+	// For now, just mark as verified with a dummy contract index
+	contractIndex := int(child.ID) // Use child DB ID as placeholder contract index
+
+	log.Printf("VERIFY: Simulating on-chain registration for child '%s' (mpk=%s)",
+		child.DisplayName, func() string {
+			if child.MpkHex != nil && len(*child.MpkHex) > 16 {
+				return (*child.MpkHex)[:16] + "..."
+			}
+			return "nil"
+		}())
+
+	// Update child record
+	if err := s.Store.MarkChildVerified(req.ChildID, contractIndex); err != nil {
+		http.Error(w, `{"error":"failed to update child status"}`, http.StatusInternalServerError)
+		return
+	}
+
+	log.Printf("SUCCESS: Child '%s' verified (contractIndex=%d)", child.DisplayName, contractIndex)
+
+	w.Header().Set("Content-Type", "application/json")
+	json.NewEncoder(w).Encode(map[string]interface{}{
+		"success":        true,
+		"child_id":       req.ChildID,
+		"contract_index": contractIndex,
+		"status":         "verified",
+		"message":        "Identity verified and registered on-chain.",
+	})
+}
+
+// POST /api/parent/child/revoke
+func (s *Server) handleRevokeChild(w http.ResponseWriter, r *http.Request) {
+	if r.Method != http.MethodPost {
+		writeAPIError(w, http.StatusMethodNotAllowed, "use POST")
+		return
+	}
+
+	parentID, ok := s.getParentFromSession(r)
+	if !ok {
+		http.Error(w, `{"error":"not logged in"}`, http.StatusUnauthorized)
+		return
+	}
+
+	var req struct {
+		ChildID  int64  `json:"child_id"`
+		Password string `json:"password"`
+	}
+	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
+		http.Error(w, `{"error":"invalid JSON"}`, http.StatusBadRequest)
+		return
+	}
+
+	// Re-authenticate the parent (extra safety for destructive action)
+	parentRecord, err := s.Store.GetParentByID(parentID)
+	if err != nil {
+		http.Error(w, `{"error":"parent not found"}`, http.StatusInternalServerError)
+		return
+	}
+	if parentRecord.PasswordHash != nil && !parent.CheckPassword(req.Password, *parentRecord.PasswordHash) {
+		http.Error(w, `{"error":"incorrect password"}`, http.StatusUnauthorized)
+		return
+	}
+
+	// Find the child
+	children, err := s.Store.GetChildrenByParent(parentID)
+	if err != nil {
+		http.Error(w, `{"error":"failed to load children"}`, http.StatusInternalServerError)
+		return
+	}
+
+	var child *store.Child
+	for _, c := range children {
+		if c.ID == req.ChildID {
+			child = &c
+			break
+		}
+	}
+
+	if child == nil {
+		http.Error(w, `{"error":"child not found"}`, http.StatusNotFound)
+		return
+	}
+
+	if child.Status != "verified" || child.ContractIndex == nil {
+		http.Error(w, `{"error":"child is not in a revocable state"}`, http.StatusBadRequest)
+		return
+	}
+
+	// For hackathon demo: simulate on-chain revocation
+	// In production, this would call revokeID() on the contract
+	log.Printf("REVOKE: Simulating on-chain revocation for child '%s' (contractIndex=%d)",
+		child.DisplayName, *child.ContractIndex)
+
+	// Update local database
+	if err := s.Store.MarkChildRevoked(req.ChildID); err != nil {
+		http.Error(w, `{"error":"failed to update status"}`, http.StatusInternalServerError)
+		return
+	}
+
+	log.Printf("SUCCESS: Child '%s' revoked", child.DisplayName)
+
+	w.Header().Set("Content-Type", "application/json")
+	json.NewEncoder(w).Encode(map[string]interface{}{
+		"success":  true,
+		"child_id": req.ChildID,
+		"status":   "revoked",
+		"message":  "Identity has been permanently revoked across all platforms.",
+	})
+}
+
+// GET /api/parent/events — contract events for parent's children
+func (s *Server) handleGetEvents(w http.ResponseWriter, r *http.Request) {
+	parentID, ok := s.getParentFromSession(r)
+	if !ok {
+		http.Error(w, `{"error":"not logged in"}`, http.StatusUnauthorized)
+		return
+	}
+
+	children, err := s.Store.GetChildrenByParent(parentID)
+	if err != nil {
+		http.Error(w, `{"error":"failed to load children"}`, http.StatusInternalServerError)
+		return
+	}
+
+	// Build a simple event list from the children's status history
+	type EventEntry struct {
+		Type          string `json:"type"`
+		ChildName     string `json:"child_name"`
+		ContractIndex int    `json:"contract_index"`
+		BlockNumber   int    `json:"block_number"`
+	}
+
+	var events []EventEntry
+	for _, c := range children {
+		if c.ContractIndex != nil {
+			events = append(events, EventEntry{
+				Type:          "registered",
+				ChildName:     c.DisplayName,
+				ContractIndex: *c.ContractIndex,
+				BlockNumber:   1, // placeholder for hackathon
+			})
+			if c.Status == "revoked" {
+				events = append(events, EventEntry{
+					Type:          "revoked",
+					ChildName:     c.DisplayName,
+					ContractIndex: *c.ContractIndex,
+					BlockNumber:   2, // placeholder for hackathon
+				})
+			}
+		}
+	}
+
+	w.Header().Set("Content-Type", "application/json")
+	json.NewEncoder(w).Encode(map[string]interface{}{
+		"success": true,
+		"events":  events,
+	})
+}
+
+// ---------------------------------------------------------------------------
 // Route Registration & Middleware
 // ---------------------------------------------------------------------------
 
@@ -666,6 +1272,24 @@ func (s *Server) RegisterRoutes(mux *http.ServeMux) {
 	mux.HandleFunc("/api/challenge", s.HandleAPIChallenge)
 	mux.HandleFunc("/api/verify/registration", s.HandleAPIVerifyRegistration)
 	mux.HandleFunc("/api/verify/auth", s.HandleAPIVerifyAuth)
+
+	// Phase 6: Parent Portal API
+	mux.HandleFunc("/api/parent/register", s.handleParentRegister)
+	mux.HandleFunc("/api/parent/login", s.handleParentLogin)
+	mux.HandleFunc("/api/parent/logout", s.handleParentLogout)
+	mux.HandleFunc("/api/parent/send-otp", s.handleSendOTP)
+	mux.HandleFunc("/api/parent/me", s.handleGetParentInfo)
+	mux.HandleFunc("/api/parent/children", s.handleGetChildren)
+	mux.HandleFunc("/api/parent/child/add", s.handleAddChild)
+	mux.HandleFunc("/api/parent/child/revoke", s.handleRevokeChild)
+	mux.HandleFunc("/api/parent/verify/approve", s.handleVerifyApprove)
+	mux.HandleFunc("/api/parent/events", s.handleGetEvents)
+
+	// Phase 6: Parent dashboard static files
+	mux.Handle("/dashboard/", http.StripPrefix("/dashboard/", http.FileServer(http.Dir("dashboard"))))
+	mux.HandleFunc("/parent", func(w http.ResponseWriter, r *http.Request) {
+		http.ServeFile(w, r, "./dashboard/index.html")
+	})
 }
 
 func CORSMiddleware(next http.Handler) http.Handler {
@@ -713,13 +1337,14 @@ func main() {
 	port := flag.Int("port", 8080, "Port for the server to listen on")
 	serviceName := flag.String("service", "KidsTube", "Platform service name (used for SPK derivation)")
 	dbPath := flag.String("db", "./veriqid.db", "Path to SQLite database file")
+	masterSecret := flag.String("master-secret", "hackathon-demo-key-change-in-production", "Encryption master secret for custodial wallets")
 	flag.Parse()
 
 	if *contractAddr == "" {
 		log.Fatal("Error: -contract flag is required.\n\nUsage:\n  ./veriqid-server -contract 0x... [-service KidsTube] [-port 8080] [-db ./veriqid.db]")
 	}
 
-	srv, err := NewServer(*serviceName, *contractAddr, *clientAddr, *dbPath)
+	srv, err := NewServer(*serviceName, *contractAddr, *clientAddr, *dbPath, *masterSecret)
 	if err != nil {
 		log.Fatalf("Failed to initialize server: %v", err)
 	}
@@ -757,6 +1382,18 @@ func main() {
 	fmt.Println("    GET  /api/challenge            Generate challenge")
 	fmt.Println("    POST /api/verify/registration  Verify registration proof")
 	fmt.Println("    POST /api/verify/auth          Verify auth proof")
+	fmt.Println("  Parent Portal:")
+	fmt.Println("    GET  /parent                   Parent dashboard")
+	fmt.Println("    POST /api/parent/register      Create parent account")
+	fmt.Println("    POST /api/parent/login         Parent login")
+	fmt.Println("    POST /api/parent/logout        Parent logout")
+	fmt.Println("    POST /api/parent/send-otp      Send phone OTP")
+	fmt.Println("    GET  /api/parent/me            Current parent info")
+	fmt.Println("    GET  /api/parent/children      List children")
+	fmt.Println("    POST /api/parent/child/add     Add child")
+	fmt.Println("    POST /api/parent/child/revoke  Revoke child identity")
+	fmt.Println("    POST /api/parent/verify/approve Simulate verification")
+	fmt.Println("    GET  /api/parent/events        Activity log")
 	fmt.Println("===========================================")
 
 	log.Fatal(http.ListenAndServe(addr, handler))

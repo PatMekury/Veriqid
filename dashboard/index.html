@@ -1,0 +1,256 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Veriqid — Parent Portal</title>
+
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
+
+    <link rel="stylesheet" href="/static/base.css">
+    <link rel="stylesheet" href="/dashboard/dashboard.css">
+</head>
+<body>
+
+    <!-- ─── Navigation ─────────────────────────────────────── -->
+    <nav class="vq-nav">
+        <div class="vq-nav-inner">
+            <a href="/" class="vq-nav-brand">
+                <span class="vq-nav-logo">🛡️</span>
+                <span>Veriqid</span>
+            </a>
+            <div class="vq-nav-links">
+                <a href="/" class="vq-nav-link">Home</a>
+                <a href="/parent" class="vq-nav-link active">Parent Portal</a>
+            </div>
+            <div id="user-info" class="user-info" style="display:none;">
+                <span id="user-email" class="user-email"></span>
+                <button class="vq-btn-link" onclick="logout()">Log out</button>
+            </div>
+        </div>
+    </nav>
+
+    <!-- ═══ SCREEN: AUTH (Login / Register) ═══════════════════ -->
+    <section id="auth-screen" class="auth-section">
+        <div class="auth-card">
+            <div class="auth-icon">🛡️</div>
+            <h1>Parent Portal</h1>
+            <p>Manage your child's digital identity — safely and privately.</p>
+
+            <!-- Tab switcher: Login / Register -->
+            <div class="auth-tabs">
+                <button class="auth-tab active" data-tab="login" onclick="switchAuthTab('login')">Log In</button>
+                <button class="auth-tab" data-tab="register" onclick="switchAuthTab('register')">Create Account</button>
+            </div>
+
+            <!-- Method switcher: Email / Phone -->
+            <div class="method-tabs">
+                <button class="method-tab active" data-method="email" onclick="switchMethodTab('email')">Email</button>
+                <button class="method-tab" data-method="phone" onclick="switchMethodTab('phone')">Phone</button>
+            </div>
+
+            <!-- Email form -->
+            <form id="form-email" class="auth-form" onsubmit="handleEmailSubmit(event)">
+                <div class="form-group">
+                    <label for="email">Email address</label>
+                    <input type="email" id="email" class="input" placeholder="parent@example.com" required>
+                </div>
+                <div class="form-group">
+                    <label for="password">Password</label>
+                    <input type="password" id="password" class="input" placeholder="At least 8 characters" required minlength="8">
+                </div>
+                <button type="submit" id="btn-email-submit" class="vq-btn-primary">
+                    <span id="btn-email-text">Log In</span>
+                </button>
+            </form>
+
+            <!-- Phone form -->
+            <form id="form-phone" class="auth-form" style="display:none;" onsubmit="handlePhoneSubmit(event)">
+                <div class="form-group">
+                    <label for="phone">Phone number</label>
+                    <input type="tel" id="phone" class="input" placeholder="+1 (234) 567-8900" required>
+                </div>
+                <div id="otp-group" class="form-group" style="display:none;">
+                    <label for="otp-code">Verification code</label>
+                    <input type="text" id="otp-code" class="input" placeholder="6-digit code" maxlength="6" pattern="[0-9]{6}" autocomplete="off">
+                    <span class="help-text">Check your phone for the code (or the server terminal for demo).</span>
+                </div>
+                <button type="submit" id="btn-phone-submit" class="vq-btn-primary">
+                    <span id="btn-phone-text">Send Code</span>
+                </button>
+            </form>
+
+            <p id="auth-error" class="auth-error" style="display:none;"></p>
+        </div>
+    </section>
+
+    <!-- ═══ SCREEN: ONBOARDING (Add Child + Verify) ═══════════ -->
+    <section id="onboarding-screen" class="onboarding-section" style="display:none;">
+        <div class="onboarding-card">
+
+            <!-- Step 1: Add child -->
+            <div id="onboard-step1">
+                <div class="onboard-icon">👶</div>
+                <h1>Add Your Child</h1>
+                <p>Enter your child's name and age range. This information is stored locally and never shared with platforms.</p>
+
+                <form onsubmit="handleAddChild(event)">
+                    <div class="form-group">
+                        <label for="child-name">Child's name or nickname</label>
+                        <input type="text" id="child-name" class="input" placeholder="e.g. Alex" required>
+                        <span class="help-text">Only visible to you on this dashboard.</span>
+                    </div>
+                    <div class="form-group">
+                        <label for="child-age">Age range</label>
+                        <select id="child-age" class="input">
+                            <option value="1">Under 13</option>
+                            <option value="2">13–17 (Teen)</option>
+                            <option value="3">18+ (Adult)</option>
+                        </select>
+                    </div>
+                    <button type="submit" class="vq-btn-primary">Continue</button>
+                </form>
+            </div>
+
+            <!-- Step 2: Verification -->
+            <div id="onboard-step2" style="display:none;">
+                <div class="onboard-icon">✅</div>
+                <h1>Verify <span id="verify-child-name"></span>'s Identity</h1>
+                <p>Choose how you'd like to verify your child's age. This is required to activate their digital identity.</p>
+
+                <div class="verify-options">
+                    <div class="verify-option" onclick="selectVerifyMethod('remote')">
+                        <div class="verify-option-icon">💻</div>
+                        <h3>Remote Notarization</h3>
+                        <p>5-minute video call with a certified notary. Show your ID and child's birth certificate on camera.</p>
+                        <span class="verify-badge">Recommended</span>
+                    </div>
+                    <div class="verify-option" onclick="selectVerifyMethod('inperson')">
+                        <div class="verify-option-icon">🏥</div>
+                        <h3>In-Person Verifier</h3>
+                        <p>Visit a participating pediatrician, school, or government office with your documents.</p>
+                    </div>
+                </div>
+
+                <!-- Hackathon: simulate verification -->
+                <div id="verify-demo-section" style="display:none;">
+                    <div class="verify-demo-note">
+                        <strong>Hackathon Demo Mode:</strong> Click below to simulate verifier approval.
+                        In production, this would be completed by a remote notary or in-person verifier.
+                    </div>
+                    <button id="btn-verify-approve" class="vq-btn-primary" onclick="simulateVerification()">
+                        ✓ Simulate Verification Approval
+                    </button>
+                </div>
+            </div>
+
+            <!-- Step 3: Success -->
+            <div id="onboard-step3" style="display:none;">
+                <div class="onboard-icon">🎉</div>
+                <h1>All Set!</h1>
+                <p><span id="success-child-name"></span>'s identity is verified and active on the blockchain.</p>
+                <p class="success-subtext">
+                    Next: install the Veriqid browser extension or mobile app on your child's device
+                    to start using verified accounts on platforms.
+                </p>
+                <button class="vq-btn-primary" onclick="goToDashboard()">Go to Dashboard</button>
+            </div>
+
+        </div>
+    </section>
+
+    <!-- ═══ SCREEN: DASHBOARD ═══════════════════════════════════ -->
+    <main id="dashboard-screen" class="dashboard-main" style="display:none;">
+
+        <!-- Summary Cards -->
+        <div class="summary-row">
+            <div class="summary-card">
+                <div class="summary-label">Children</div>
+                <div id="stat-total" class="summary-value">—</div>
+                <div class="summary-desc">Registered identities</div>
+            </div>
+            <div class="summary-card summary-card-active">
+                <div class="summary-label">Active</div>
+                <div id="stat-active" class="summary-value accent">—</div>
+                <div class="summary-desc">Currently verified</div>
+            </div>
+            <div class="summary-card summary-card-revoked">
+                <div class="summary-label">Revoked</div>
+                <div id="stat-revoked" class="summary-value">—</div>
+                <div class="summary-desc">Deactivated</div>
+            </div>
+        </div>
+
+        <!-- Add Another Child -->
+        <div class="add-child-bar">
+            <button class="vq-btn-secondary" onclick="showOnboarding()">+ Add Another Child</button>
+        </div>
+
+        <!-- Child Cards -->
+        <section class="section-block">
+            <div class="section-header">
+                <h2>Your Children</h2>
+                <button class="vq-btn-secondary btn-sm" onclick="refreshDashboard()">↻ Refresh</button>
+            </div>
+            <div id="children-grid" class="identity-grid">
+                <div class="loading-placeholder">
+                    <div class="spinner"></div>
+                    <p>Loading...</p>
+                </div>
+            </div>
+        </section>
+
+        <!-- Activity Log -->
+        <section class="section-block">
+            <div class="section-header">
+                <h2>Activity Log</h2>
+                <span class="badge" id="event-count">0 events</span>
+            </div>
+            <div id="activity-log" class="activity-log">
+                <div class="loading-placeholder">
+                    <div class="spinner"></div>
+                    <p>Loading events...</p>
+                </div>
+            </div>
+        </section>
+
+    </main>
+
+    <!-- ═══ REVOKE MODAL ════════════════════════════════════════ -->
+    <div id="revoke-modal" class="modal-overlay" style="display:none;">
+        <div class="modal-card">
+            <div class="modal-icon">⚠️</div>
+            <h2>Revoke Identity?</h2>
+            <p>This will <strong>permanently deactivate</strong> <span id="revoke-child-name"></span>'s identity.</p>
+            <p class="modal-warning">
+                Once revoked, your child will lose access to ALL platforms where this identity was used.
+                This cannot be undone.
+            </p>
+            <div class="form-group">
+                <label for="revoke-password">Enter your password to confirm</label>
+                <input type="password" id="revoke-password" class="input" placeholder="Your account password">
+            </div>
+            <div class="modal-actions">
+                <button class="vq-btn-secondary" onclick="closeRevokeModal()">Cancel</button>
+                <button id="btn-confirm-revoke" class="btn-danger" onclick="confirmRevoke()">
+                    Revoke Identity
+                </button>
+            </div>
+            <p id="revoke-status" class="revoke-status" style="display:none;"></p>
+        </div>
+    </div>
+
+    <!-- Footer -->
+    <footer class="vq-footer">
+        <div class="vq-footer-inner">
+            <span>🛡️ Veriqid — Privacy-First Children's Internet Identity</span>
+            <span class="vq-footer-sub">Parent Portal v0.6.0</span>
+        </div>
+    </footer>
+
+    <script src="/dashboard/dashboard.js"></script>
+
+</body>
+</html>
