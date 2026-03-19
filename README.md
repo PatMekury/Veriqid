@@ -1,6 +1,6 @@
 # Veriqid — Privacy-Preserving Children's Identity Verification
 
-Veriqid is a **zero-knowledge, blockchain-anchored identity system** that lets children prove they are verified minors to online platforms — without revealing who they are. Built on the [U2SSO (Universal Second-factor Single Sign-On)](https://github.com/nicola-2010/U2SSO) protocol by Alupotha, Barbaraci, Kaklamanis, Rawat, Cachin & Zhang (2025), Veriqid extends the original research paper with five critical improvements that make the protocol production-ready.
+Veriqid is a **zero-knowledge, blockchain-anchored identity system** that lets children prove they are verified minors to online platforms — without revealing who they are. Built on the [U2SSO (Universal Second-factor Single Sign-On)](https://github.com/BoquilaID/U2SSO) protocol by Alupotha, Barbaraci, Kaklamanis, Rawat, Cachin & Zhang (2025), Veriqid extends the original research paper with five critical improvements that make the protocol production-ready.
 
 Parents verify their child once (through a pediatrician, school, or remote notary), and the child can sign up on any platform using a browser extension — no passwords, no personal data shared, no cross-platform tracking. Parents retain one-click revocation at any time.
 
@@ -19,7 +19,7 @@ COPPA and similar regulations require platforms to verify the age of child users
 | **1** | Environment & Crypto Library | Builds the libsecp256k1 Boquila fork with ring signature extensions via CGO |
 | **2** | Bridge API | Local HTTP service wrapping the C crypto library so browsers can generate proofs |
 | **3** | Enhanced Smart Contract | `Veriqid.sol` — fixes owner bug, adds verifier registry, events, age brackets, batch retrieval |
-| **4** | Veriqid Server | Production server with SQLite persistence, sessions, age-verification endpoints, platform SDK |
+| **4** | Veriqid Server | Production server, sessions, age-verification endpoints, platform SDK |
 | **5** | Browser Extension | Chrome Manifest V3 extension — auto-detects Veriqid forms, calls bridge, auto-fills proofs |
 | **6** | Parent Dashboard | Parent portal — account creation, child verification, activity monitoring, one-click revocation |
 | **7** | Demo Platform ("KidsTube") | Mock children's video platform showcasing the full end-to-end flow |
@@ -128,63 +128,8 @@ Security: Collision resistance Pr ≤ 2⁻²⁵⁶, cross-service unlinkability 
 | [`content.js`](extension/content.js) | Content script — form detection, auto-fill, proof injection |
 | [`popup.html`](extension/popup.html) / [`popup.js`](extension/popup.js) | Extension popup UI — identity management, status display |
 
-### Parent Dashboard (`dashboard/`)
-
-| File | Purpose |
-|------|---------|
-| [`index.html`](dashboard/index.html) | Parent portal — account creation, child verification, activity log, revocation |
-| [`dashboard.js`](dashboard/dashboard.js) | Dashboard logic — API calls, event listening, state management |
-
-### Demo Platform (`demo-platform/`)
-
-| File | Purpose |
-|------|---------|
-| [`templates/`](demo-platform/templates/) | KidsTube HTML templates — landing, signup, profile, age-gated content |
-| [`static/`](demo-platform/static/) | KidsTube assets — CSS, JS, images |
-| [`cmd/demo-platform/main.go`](cmd/demo-platform/main.go) | KidsTube server entry point |
-
 ---
 
-## Architecture
-
-```
-┌──────────────────────────────────────────────────────────────────┐
-│  PARENT                                                          │
-│  ┌────────────────────┐                                          │
-│  │ Parent Dashboard   │ ← Create account, verify child,         │
-│  │ (dashboard/)       │   monitor activity, revoke identity      │
-│  └────────┬───────────┘                                          │
-│           │ HTTP API                                             │
-├───────────┼──────────────────────────────────────────────────────┤
-│  SERVER   │                                                      │
-│  ┌────────▼───────────┐    ┌─────────────────────┐              │
-│  │ Veriqid Server     │    │ Ethereum Blockchain  │              │
-│  │ (cmd/veriqid-      │◄──►│ (Ganache local /     │              │
-│  │  server/)          │    │  VeriqidV2.sol)      │              │
-│  │ - SQLite DB        │    │ - Identity registry  │              │
-│  │ - Sessions         │    │ - Merkle roots       │              │
-│  │ - Age verification │    │ - Nullifiers         │              │
-│  │ - VE-ASC proofs    │    │ - Epoch management   │              │
-│  └────────▲───────────┘    └─────────────────────┘              │
-│           │                                                      │
-├───────────┼──────────────────────────────────────────────────────┤
-│  CHILD    │                                                      │
-│  ┌────────┴───────────┐    ┌─────────────────────┐              │
-│  │ Browser Extension  │◄──►│ Bridge API           │              │
-│  │ (extension/)       │    │ (bridge/bridge.go)   │              │
-│  │ - Detects forms    │    │ - CGO → libsecp256k1 │              │
-│  │ - Auto-fills proofs│    │ - Ring signatures    │              │
-│  │ - Manages keys     │    │ - Nullifier gen      │              │
-│  └────────┬───────────┘    │ - Merkle proofs      │              │
-│           │                └─────────────────────┘              │
-│  ┌────────▼───────────┐                                          │
-│  │ KidsTube           │ ← Demo platform: child signs up,        │
-│  │ (demo-platform/)   │   watches age-gated content              │
-│  └────────────────────┘                                          │
-└──────────────────────────────────────────────────────────────────┘
-```
-
----
 
 ## Security Properties
 
@@ -196,27 +141,6 @@ All VE-ASC properties reduce to standard assumptions already used by the underly
 
 **ASC formal model alignment:** Veriqid implements the full Anonymous Self-Credentials lifecycle — `Setup()`, `Gen(sk)→ID`, `Prove(sk, S, m)→(a, nul, π)`, `Verify(S, m, a, nul, π)→bool` — with the SPK serving the dual role of pseudonym and nullifier for elegant one-identity-per-service enforcement.
 
----
-
-## Quick Start
-
-See [SETUP.md](SETUP.md) for complete setup instructions including cloning, building the crypto library, deploying contracts, and running the full demo.
-
-```bash
-# Clone the repository
-git clone https://github.com/nicola-2010/U2SSO.git
-cd U2SSO/Veriqid
-
-# Build the crypto library (requires WSL2 on Windows)
-cd crypto-dbpoe && ./autogen.sh && ./configure --enable-module-ringcip --enable-experimental && make && sudo make install && sudo ldconfig && cd ..
-
-# Deploy contracts + start services (3 terminals)
-# Terminal 1: ganache --port 7545
-# Terminal 2: cd contracts && truffle migrate --network development
-# Terminal 3: go run ./cmd/veriqid-server -contract 0x<ADDR> -ethkey <KEY> -service "KidsTube" -port 8080
-
-# Open http://localhost:8080 in your browser
-```
 
 ---
 
