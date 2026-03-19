@@ -24,22 +24,7 @@ Complete instructions for cloning the repository, building the cryptographic lib
 ## Step 1: Clone the Repository (~2 min)
 
 ```bash
-git clone https://github.com/nicola-2010/U2SSO.git
-cd U2SSO/Veriqid
-```
-
-The `Veriqid/` directory is the main project. The `crypto-dbpoe/` directory (one level up in `U2SSO/`) contains the custom libsecp256k1 fork that must be copied in.
-
-```bash
-# Copy the crypto library into the Veriqid project
-cp -r ../crypto-dbpoe ./crypto-dbpoe
-```
-
-Verify the copy worked:
-
-```bash
-ls crypto-dbpoe/include/secp256k1_ringcip.h
-# Should show the file path — this is the ring signature header
+git clone https://github.com/PatMekury/Veriqid
 ```
 
 ---
@@ -399,65 +384,6 @@ Ganache is ephemeral — all blockchain data is lost when it stops. After restar
 
 Key files (`key1`, `key2`, etc.) persist on disk but are not registered on the new contract — you must re-register them or create new ones.
 
----
-
-## Project Structure
-
-```
-Veriqid/
-├── README.md                           # Project overview & VE-ASC improvements
-├── SETUP.md                            # This file
-├── go.mod / go.sum                     # Go module (github.com/patmekury/veriqid)
-│
-├── pkg/
-│   ├── u2sso/                          # Core crypto (CGO → libsecp256k1 Boquila)
-│   │   ├── u2ssolib.go                 # Ring signatures, key derivation, proofs
-│   │   └── U2SSO.go                    # Smart contract Go bindings
-│   └── ve_asc/                         # VE-ASC enhancements (pure Go)
-│       ├── protocol.go                 # Setup, Gen, Prove, Verify, CompareProtocols
-│       ├── nullifier.go                # 3-layer HMAC-SHA256 nullifier system
-│       ├── attributes.go              # Pedersen commitments + ZK range proofs
-│       ├── merkle.go                   # Merkle tree (1M identities) + sparse revocation
-│       └── benchmark.go                # Original vs VE-ASC comparative benchmarks
-│
-├── bridge/bridge.go                    # Bridge API — HTTP wrapper around CGO crypto
-├── cmd/
-│   ├── bridge/main.go                  # Bridge entry point (port 9090)
-│   ├── client/main.go                  # CLI tool (create, register, auth)
-│   ├── server/main.go                  # Original minimal server (Phase 1)
-│   ├── veriqid-server/main.go          # Production server (SQLite, sessions, VE-ASC)
-│   └── demo-platform/main.go           # KidsTube demo server
-│
-├── contracts/
-│   ├── U2SSO.sol                       # Original contract (reference)
-│   ├── Veriqid.sol                     # Enhanced contract (owner fix, verifier registry)
-│   └── contracts/VeriqidV2.sol         # VE-ASC contract (Merkle, epochs, nullifiers)
-│
-├── extension/                          # Chrome extension (Manifest V3)
-│   ├── manifest.json
-│   ├── background.js                   # Service worker — bridge comms
-│   ├── content.js                      # Form detection + auto-fill
-│   ├── popup.html / popup.js / popup.css
-│   └── icons/
-│
-├── extension-portable/                 # Portable extension variant
-│
-├── dashboard/                          # Parent portal
-│   ├── index.html
-│   ├── dashboard.js
-│   └── dashboard.css
-│
-├── demo-platform/                      # KidsTube demo
-│   ├── templates/                      # HTML templates
-│   └── static/                         # CSS, JS, images
-│
-├── internal/                           # Internal packages (session, store, etc.)
-├── templates/                          # Server HTML templates
-├── static/                             # Original web UI
-├── crypto-dbpoe/                       # libsecp256k1 Boquila fork (copied from U2SSO/)
-├── test_bridge.sh                      # Automated bridge API test suite (17 tests)
-└── test_veriqid_server.sh              # Automated server test suite
-```
 
 ---
 
