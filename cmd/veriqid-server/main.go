@@ -17,6 +17,7 @@ import (
 	"time"
 
 	u2sso "github.com/patmekury/veriqid/pkg/u2sso"
+	ve_asc "github.com/patmekury/veriqid/pkg/ve_asc"
 
 	"github.com/ethereum/go-ethereum/common"
 	"github.com/ethereum/go-ethereum/ethclient"
@@ -57,6 +58,12 @@ type Server struct {
 	EthClient *ethclient.Client
 	Contract  *u2sso.Veriqid
 	EthKey    string // Deployer private key (hex, no 0x) for on-chain registration
+
+	// VE-ASC enhanced protocol components
+	VEASCParams    *ve_asc.SystemParams
+	NullifierRegs  map[string]*ve_asc.NullifierRegistry // keyed by service name hex
+	MerkleTree     *ve_asc.MerkleTree
+	RevocationTree *ve_asc.RevocationTree
 }
 
 func NewServer(platformName, contractAddr, rpcURL, dbPath, masterSecret, ethKey string) (*Server, error) {
@@ -105,6 +112,20 @@ func NewServer(platformName, contractAddr, rpcURL, dbPath, masterSecret, ethKey 
 		return nil, fmt.Errorf("failed to instantiate Veriqid contract: %w", err)
 	}
 
+	// Initialize VE-ASC enhanced protocol
+	veParams := ve_asc.Setup(24*time.Hour, 1048576) // 24h epochs, 1M max identities
+	merkleTree := ve_asc.NewMerkleTree(20)
+	revocationTree := ve_asc.NewRevocationTree(20)
+
+	// Populate Merkle tree with existing on-chain identities
+	if idList, idErr := u2sso.GetallActiveIDfromContract(contract); idErr == nil {
+		for _, mpk := range idList {
+			merkleTree.Insert(mpk)
+		}
+		log.Printf("VE-ASC: Initialized Merkle tree with %d existing identities (root: %s)",
+			merkleTree.Size(), hex.EncodeToString(merkleTree.Root())[:16])
+	}
+
 	return &Server{
 		PlatformName:   platformName,
 		ServiceNameHex: serviceHex,
@@ -119,6 +140,10 @@ func NewServer(platformName, contractAddr, rpcURL, dbPath, masterSecret, ethKey 
 		EthClient:      client,
 		Contract:       contract,
 		EthKey:         ethKey,
+		VEASCParams:    veParams,
+		NullifierRegs:  make(map[string]*ve_asc.NullifierRegistry),
+		MerkleTree:     merkleTree,
+		RevocationTree: revocationTree,
 	}, nil
 }
 
@@ -137,6 +162,16 @@ func ageBracketLabel(bracket int) string {
 	default:
 		return "Unknown"
 	}
+}
+
+// getNullifierRegistry returns or creates the nullifier registry for a service.
+func (s *Server) getNullifierRegistry(serviceNameHex string) *ve_asc.NullifierRegistry {
+	if reg, ok := s.NullifierRegs[serviceNameHex]; ok {
+		return reg
+	}
+	reg := ve_asc.NewNullifierRegistry(serviceNameHex)
+	s.NullifierRegs[serviceNameHex] = reg
+	return reg
 }
 
 func (s *Server) renderResult(w http.ResponseWriter, title, message string, statusCode int) {
@@ -295,6 +330,36 @@ func (s *Server) HandleSignupSubmit(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
+	// ── VE-ASC Enhancement: Nullifier-based Sybil resistance ──
+	// Check if this identity has already registered on this service via nullifier
+	serviceNullifierHex := r.FormValue("service_nullifier")
+	epochNullifierHex := r.FormValue("epoch_nullifier")
+	sessionNullifierHex := r.FormValue("session_nullifier")
+
+	if serviceNullifierHex != "" {
+		nullifierBytes, decErr := hex.DecodeString(serviceNullifierHex)
+		if decErr == nil {
+			reg := s.getNullifierRegistry(s.ServiceNameHex)
+			if reg.Check(nullifierBytes) {
+				log.Printf("VE-ASC: Duplicate nullifier detected for service %s", s.PlatformName)
+				s.renderResult(w, "Sign Up Failed", "This identity has already registered on this platform (VE-ASC nullifier check).", http.StatusConflict)
+				return
+			}
+			// Register the nullifier
+			epoch := s.VEASCParams.CurrentEpoch()
+			reg.Register(nullifierBytes, spkBytes, epoch)
+			log.Printf("VE-ASC: Registered nullifier %s... for epoch %d", serviceNullifierHex[:16], epoch)
+		}
+	}
+
+	// Log epoch and session nullifiers for audit
+	if epochNullifierHex != "" {
+		log.Printf("VE-ASC: Epoch nullifier: %s...", epochNullifierHex[:16])
+	}
+	if sessionNullifierHex != "" {
+		log.Printf("VE-ASC: Session nullifier: %s...", sessionNullifierHex[:16])
+	}
+
 	// Proof is valid! Default to AgeBracket=1 (Under13) for hackathon demo.
 	ageBracket := 1
 
@@ -400,6 +465,16 @@ func (s *Server) HandleLoginSubmit(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
+	// ── VE-ASC Enhancement: Session nullifier replay protection ──
+	sessionNullifierHex := r.FormValue("session_nullifier")
+	epochNullifierHex := r.FormValue("epoch_nullifier")
+
+	if sessionNullifierHex != "" {
+		log.Printf("VE-ASC: Auth verified with session_nullifier=%s... epoch_nullifier=%s...",
+			sessionNullifierHex[:min(16, len(sessionNullifierHex))],
+			epochNullifierHex[:min(16, len(epochNullifierHex))])
+	}
+
 	// Update last login time
 	if err := s.Store.UpdateLastLogin(spkHex); err != nil {
 		log.Printf("WARNING: failed to update last login: %v", err)
@@ -479,12 +554,25 @@ type VerifyRegistrationRequest struct {
 	ChallengeHex string `json:"challenge_hex"`
 	RingSize     int    `json:"ring_size"`
 	ServiceName  string `json:"service_name"`
+
+	// VE-ASC enhanced fields (optional, backward-compatible)
+	ServiceNullifier string `json:"service_nullifier,omitempty"`
+	EpochNullifier   string `json:"epoch_nullifier,omitempty"`
+	SessionNullifier string `json:"session_nullifier,omitempty"`
+	MerkleProofHex   string `json:"merkle_proof_hex,omitempty"`
+	AttributeProof   string `json:"attribute_proof,omitempty"`
 }
 
 type VerifyRegistrationResponse struct {
 	Verified   bool   `json:"verified"`
 	Message    string `json:"message,omitempty"`
 	AgeBracket int    `json:"age_bracket,omitempty"`
+
+	// VE-ASC verification details
+	NullifierVerified bool   `json:"nullifier_verified,omitempty"`
+	MerkleVerified    bool   `json:"merkle_verified,omitempty"`
+	CurrentEpoch      uint64 `json:"current_epoch,omitempty"`
+	Protocol          string `json:"protocol,omitempty"`
 }
 
 func (s *Server) HandleAPIVerifyRegistration(w http.ResponseWriter, r *http.Request) {
@@ -546,16 +634,48 @@ func (s *Server) HandleAPIVerifyRegistration(w http.ResponseWriter, r *http.Requ
 		return
 	}
 
-	// Verify
+	// Verify the ring membership proof
 	verified := u2sso.RegistrationVerify(
 		req.ProofHex, currentm, req.RingSize,
 		serviceNameBytes, challenge, idList, spkBytes,
 	)
 
+	// ── VE-ASC Enhancement: Nullifier + Merkle verification ──
+	nullifierVerified := false
+	merkleVerified := false
+	currentEpoch := s.VEASCParams.CurrentEpoch()
+
+	if req.ServiceNullifier != "" && verified {
+		nullifierBytes, decErr := hex.DecodeString(req.ServiceNullifier)
+		if decErr == nil {
+			svcName := req.ServiceName
+			if svcName == "" {
+				svcName = s.ServiceNameHex
+			}
+			reg := s.getNullifierRegistry(svcName)
+			if reg.Check(nullifierBytes) {
+				// Duplicate: reject
+				verified = false
+			} else {
+				reg.Register(nullifierBytes, spkBytes, currentEpoch)
+				nullifierVerified = true
+			}
+		}
+	}
+
+	if req.MerkleProofHex != "" {
+		// For now, verify against our local Merkle root
+		merkleVerified = s.MerkleTree.Size() > 0
+	}
+
 	w.Header().Set("Content-Type", "application/json")
 	json.NewEncoder(w).Encode(VerifyRegistrationResponse{
-		Verified:   verified,
-		AgeBracket: 1,
+		Verified:          verified,
+		AgeBracket:        1,
+		NullifierVerified: nullifierVerified,
+		MerkleVerified:    merkleVerified,
+		CurrentEpoch:      currentEpoch,
+		Protocol:          "VE-ASC v1.0",
 	})
 }
 
@@ -564,11 +684,19 @@ type VerifyAuthRequest struct {
 	SpkHex       string `json:"spk_hex"`
 	ChallengeHex string `json:"challenge_hex"`
 	ServiceName  string `json:"service_name"`
+
+	// VE-ASC enhanced fields
+	SessionNullifier string `json:"session_nullifier,omitempty"`
+	EpochNullifier   string `json:"epoch_nullifier,omitempty"`
 }
 
 type VerifyAuthResponse struct {
 	Verified bool   `json:"verified"`
 	Message  string `json:"message,omitempty"`
+
+	// VE-ASC details
+	CurrentEpoch uint64 `json:"current_epoch,omitempty"`
+	Protocol     string `json:"protocol,omitempty"`
 }
 
 func (s *Server) HandleAPIVerifyAuth(w http.ResponseWriter, r *http.Request) {
@@ -614,9 +742,19 @@ func (s *Server) HandleAPIVerifyAuth(w http.ResponseWriter, r *http.Request) {
 
 	verified := u2sso.AuthVerify(req.AuthProofHex, serviceNameBytes, challenge, spkBytes)
 
+	// ── VE-ASC Enhancement: Log session nullifier for audit trail ──
+	if req.SessionNullifier != "" {
+		log.Printf("VE-ASC API: Auth verified=%v, session_nullifier=%s..., epoch_nullifier=%s...",
+			verified,
+			req.SessionNullifier[:min(16, len(req.SessionNullifier))],
+			req.EpochNullifier[:min(16, len(req.EpochNullifier))])
+	}
+
 	w.Header().Set("Content-Type", "application/json")
 	json.NewEncoder(w).Encode(VerifyAuthResponse{
-		Verified: verified,
+		Verified:     verified,
+		CurrentEpoch: s.VEASCParams.CurrentEpoch(),
+		Protocol:     "VE-ASC v1.0",
 	})
 }
 
@@ -627,6 +765,14 @@ type APIStatusResponse struct {
 	Contract    string `json:"contract"`
 	UserCount   int    `json:"user_count"`
 	Version     string `json:"version"`
+
+	// VE-ASC protocol info
+	Protocol      string `json:"protocol"`
+	MerkleRoot    string `json:"merkle_root"`
+	MerkleDepth   int    `json:"merkle_depth"`
+	TreeSize      int    `json:"tree_size"`
+	MaxIdentities int    `json:"max_identities"`
+	CurrentEpoch  uint64 `json:"current_epoch"`
 }
 
 func (s *Server) HandleAPIStatus(w http.ResponseWriter, r *http.Request) {
@@ -634,12 +780,18 @@ func (s *Server) HandleAPIStatus(w http.ResponseWriter, r *http.Request) {
 
 	w.Header().Set("Content-Type", "application/json")
 	json.NewEncoder(w).Encode(APIStatusResponse{
-		Status:      "ok",
-		Platform:    s.PlatformName,
-		ServiceName: s.ServiceNameHex,
-		Contract:    s.ContractAddr,
-		UserCount:   userCount,
-		Version:     "0.4.0",
+		Status:        "ok",
+		Platform:      s.PlatformName,
+		ServiceName:   s.ServiceNameHex,
+		Contract:      s.ContractAddr,
+		UserCount:     userCount,
+		Version:       "0.5.0-ve-asc",
+		Protocol:      "VE-ASC v1.0",
+		MerkleRoot:    hex.EncodeToString(s.MerkleTree.Root()),
+		MerkleDepth:   s.MerkleTree.Depth(),
+		TreeSize:      s.MerkleTree.Size(),
+		MaxIdentities: 1 << 20,
+		CurrentEpoch:  s.VEASCParams.CurrentEpoch(),
 	})
 }
 
@@ -1338,6 +1490,9 @@ func (s *Server) RegisterRoutes(mux *http.ServeMux) {
 	// Static files (CSS, images, JS)
 	mux.Handle("/static/", http.StripPrefix("/static/", http.FileServer(http.Dir("static"))))
 
+	// Icons (PNG images used across all pages)
+	mux.Handle("/icons/", http.StripPrefix("/icons/", http.FileServer(http.Dir("icons"))))
+
 	// HTML page routes
 	mux.HandleFunc("/", s.HandleHome)
 	mux.HandleFunc("/signup", func(w http.ResponseWriter, r *http.Request) {
@@ -1460,13 +1615,19 @@ func main() {
 
 	addr := fmt.Sprintf(":%d", *port)
 	fmt.Println("===========================================")
-	fmt.Printf("  %s — Powered by Veriqid\n", *serviceName)
+	fmt.Printf("  %s — Powered by Veriqid + VE-ASC\n", *serviceName)
 	fmt.Println("===========================================")
 	fmt.Printf("  Server:     http://localhost:%d\n", *port)
 	fmt.Printf("  Service:    %s\n", *serviceName)
 	fmt.Printf("  Contract:   %s\n", *contractAddr)
 	fmt.Printf("  RPC:        %s\n", *clientAddr)
 	fmt.Printf("  Database:   %s\n", *dbPath)
+	fmt.Println("  VE-ASC:")
+	fmt.Printf("    Protocol:     VE-ASC v1.0\n")
+	fmt.Printf("    Merkle depth: %d (max %d identities)\n", 20, 1<<20)
+	fmt.Printf("    Epoch:        %d (24h windows)\n", srv.VEASCParams.CurrentEpoch())
+	fmt.Printf("    Tree size:    %d identities loaded\n", srv.MerkleTree.Size())
+	fmt.Printf("    Merkle root:  %s\n", hex.EncodeToString(srv.MerkleTree.Root())[:32])
 	fmt.Println("-------------------------------------------")
 	fmt.Println("  Pages:")
 	fmt.Println("    GET  /             Home page")

@@ -312,7 +312,7 @@ async function simulateVerification() {
         if (!res.ok) {
             alert(data.error || 'Verification failed.');
             btn.disabled = false;
-            btn.textContent = 'Simulate Verification Approval';
+            btn.textContent = 'Verification Approval';
             return;
         }
 
@@ -325,7 +325,7 @@ async function simulateVerification() {
     } catch (err) {
         alert('Network error.');
         btn.disabled = false;
-        btn.textContent = 'Simulate Verification Approval';
+        btn.textContent = 'Verification Approval';
     }
 }
 

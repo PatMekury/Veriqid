@@ -367,6 +367,17 @@ func AddIDstoIdR(client *ethclient.Client, sk string, inst *Veriqid, id []byte, 
 		return -1, fmt.Errorf("invalid ethereum key: %w", err)
 	}
 
+	// Get the chain ID from the network (required for EIP-155 signing)
+	chainID, err := client.ChainID(context.Background())
+	if err != nil {
+		return -1, fmt.Errorf("failed to get chain ID: %w", err)
+	}
+
+	auth, err := bind.NewKeyedTransactorWithChainID(privateKey, chainID)
+	if err != nil {
+		return -1, fmt.Errorf("failed to create transactor: %w", err)
+	}
+
 	publicKey := privateKey.Public()
 	publicKeyECDSA, ok := publicKey.(*ecdsa.PublicKey)
 	if !ok {
@@ -379,16 +390,9 @@ func AddIDstoIdR(client *ethclient.Client, sk string, inst *Veriqid, id []byte, 
 		return -1, fmt.Errorf("failed to get nonce: %w", err)
 	}
 
-	gasPrice, err := client.SuggestGasPrice(context.Background())
-	if err != nil {
-		return -1, fmt.Errorf("failed to get gas price: %w", err)
-	}
-
-	auth := bind.NewKeyedTransactor(privateKey)
 	auth.Nonce = big.NewInt(int64(nonce))
 	auth.Value = big.NewInt(0)     // in wei
 	auth.GasLimit = uint64(300000) // in units
-	auth.GasPrice = gasPrice
 
 	//key := [32]byte{}
 	//copy(key[:], []byte("foo"))

@@ -19,15 +19,24 @@ import (
 	"encoding/hex"
 	"encoding/json"
 	"fmt"
+	"log"
 	"math/big"
 	"net/http"
 	"os"
 	"path/filepath"
+	"time"
 
 	u2sso "github.com/patmekury/veriqid/pkg/u2sso"
+	ve_asc "github.com/patmekury/veriqid/pkg/ve_asc"
 
 	"github.com/ethereum/go-ethereum/common"
 	"github.com/ethereum/go-ethereum/ethclient"
+)
+
+// VE-ASC defaults
+const (
+	DefaultMerkleDepth = 20            // supports ~1M identities
+	DefaultEpochSeconds = 86400        // 24 hours
 )
 
 // #cgo CFLAGS: -g -Wall
@@ -51,6 +60,12 @@ type Bridge struct {
 
 	// DefaultRPCURL is the default Ethereum JSON-RPC endpoint.
 	DefaultRPCURL string
+
+	// VE-ASC enhanced protocol components
+	VEASCParams    *ve_asc.SystemParams
+	MerkleTree     *ve_asc.MerkleTree
+	RevocationTree *ve_asc.RevocationTree
+	NullifierRegs  map[string]*ve_asc.NullifierRegistry // keyed by service name hex
 }
 
 // NewBridge creates a new Bridge instance with the given defaults.
@@ -58,9 +73,19 @@ func NewBridge(contract, rpcURL string) *Bridge {
 	if rpcURL == "" {
 		rpcURL = "http://127.0.0.1:7545"
 	}
+
+	// Initialize VE-ASC protocol components
+	params := ve_asc.Setup(time.Duration(DefaultEpochSeconds)*time.Second, DefaultMerkleDepth)
+	merkleTree := ve_asc.NewMerkleTree(DefaultMerkleDepth)
+	revocationTree := ve_asc.NewRevocationTree(DefaultMerkleDepth)
+
 	return &Bridge{
 		DefaultContract: contract,
 		DefaultRPCURL:   rpcURL,
+		VEASCParams:     params,
+		MerkleTree:      merkleTree,
+		RevocationTree:  revocationTree,
+		NullifierRegs:   make(map[string]*ve_asc.NullifierRegistry),
 	}
 }
 
@@ -195,6 +220,12 @@ type CreateIdentityResponse struct {
 	MpkHex  string `json:"mpk_hex,omitempty"`
 	Index   int64  `json:"index,omitempty"`
 	Error   string `json:"error,omitempty"`
+
+	// VE-ASC enhanced fields
+	MerkleRoot       string `json:"merkle_root,omitempty"`
+	MerkleIndex      int    `json:"merkle_index,omitempty"`
+	AttributeCommit  string `json:"attribute_commit,omitempty"`
+	NullifierSeedSet bool   `json:"nullifier_seed_set,omitempty"`
 }
 
 // RegisterResponse is returned after generating a registration proof.
@@ -205,6 +236,15 @@ type RegisterResponse struct {
 	RingSize      int64  `json:"ring_size,omitempty"`
 	ContractIndex int64  `json:"contract_index,omitempty"`
 	Error         string `json:"error,omitempty"`
+
+	// VE-ASC enhanced fields
+	ServiceNullifier string `json:"service_nullifier,omitempty"`
+	EpochNullifier   string `json:"epoch_nullifier,omitempty"`
+	SessionNullifier string `json:"session_nullifier,omitempty"`
+	CurrentEpoch     uint64 `json:"current_epoch,omitempty"`
+	MerkleRoot       string `json:"merkle_root,omitempty"`
+	MerkleProofHex   string `json:"merkle_proof_hex,omitempty"`
+	AttributeProof   string `json:"attribute_proof,omitempty"`
 }
 
 // AuthResponse is returned after generating an authentication proof.
@@ -213,6 +253,11 @@ type AuthResponse struct {
 	AuthProofHex string `json:"auth_proof_hex,omitempty"`
 	SpkHex       string `json:"spk_hex,omitempty"`
 	Error        string `json:"error,omitempty"`
+
+	// VE-ASC enhanced fields
+	SessionNullifier string `json:"session_nullifier,omitempty"`
+	EpochNullifier   string `json:"epoch_nullifier,omitempty"`
+	CurrentEpoch     uint64 `json:"current_epoch,omitempty"`
 }
 
 // ChallengeResponse is returned when requesting a fresh random challenge.
@@ -227,6 +272,14 @@ type StatusResponse struct {
 	Version  string `json:"version"`
 	Contract string `json:"contract,omitempty"`
 	RPCURL   string `json:"rpc_url,omitempty"`
+
+	// VE-ASC protocol info
+	Protocol        string `json:"protocol,omitempty"`
+	MerkleDepth     int    `json:"merkle_depth,omitempty"`
+	MaxIdentities   int    `json:"max_identities,omitempty"`
+	CurrentEpoch    uint64 `json:"current_epoch,omitempty"`
+	MerkleRoot      string `json:"merkle_root,omitempty"`
+	TreeSize        int    `json:"tree_size,omitempty"`
 }
 
 // KeyInfo represents a single identity key file with its on-chain status.
@@ -295,10 +348,16 @@ func CORSMiddleware(next http.Handler) http.Handler {
 // GET /api/status
 func (b *Bridge) HandleStatus(w http.ResponseWriter, r *http.Request) {
 	writeJSON(w, StatusResponse{
-		Status:   "ok",
-		Version:  "0.2.0",
-		Contract: b.DefaultContract,
-		RPCURL:   b.DefaultRPCURL,
+		Status:          "ok",
+		Version:         "0.3.0-ve-asc",
+		Contract:        b.DefaultContract,
+		RPCURL:          b.DefaultRPCURL,
+		Protocol:        "VE-ASC v1.0",
+		MerkleDepth:     DefaultMerkleDepth,
+		MaxIdentities:   1 << DefaultMerkleDepth,
+		CurrentEpoch:    b.VEASCParams.CurrentEpoch(),
+		MerkleRoot:      hex.EncodeToString(b.MerkleTree.Root()),
+		TreeSize:        b.MerkleTree.Size(),
 	})
 }
 
@@ -383,10 +442,38 @@ func (b *Bridge) HandleCreateIdentity(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
+	// ── VE-ASC Enhancement: Insert MPK into Merkle tree + generate credential ──
+	merkleIndex := b.MerkleTree.Size()
+	if insertErr := b.MerkleTree.Insert(mpkBytes); insertErr != nil {
+		log.Printf("WARNING: VE-ASC Merkle insert failed (non-fatal): %v", insertErr)
+	}
+
+	// Generate VE-ASC credential with attribute commitment
+	attrs := &ve_asc.CredentialAttributes{
+		AgeBracket:        req.AgeBracket,
+		VerificationLevel: 1, // parent-verified for hackathon
+		ExpiryEpoch:       b.VEASCParams.CurrentEpoch() + 365, // ~1 year
+		Issuer:            []byte("veriqid-bridge"),
+	}
+	cred, credErr := ve_asc.Gen(b.VEASCParams, mskBytes, attrs)
+
+	var attrCommitHex string
+	if credErr == nil && cred.AttributeCommitment != nil && cred.AttributeCommitment.C != nil {
+		commitBytes := append(cred.AttributeCommitment.C.X.Bytes(), cred.AttributeCommitment.C.Y.Bytes()...)
+		attrCommitHex = hex.EncodeToString(commitBytes)
+	}
+
+	log.Printf("VE-ASC: Identity registered — merkle_index=%d, tree_size=%d, root=%s",
+		merkleIndex, b.MerkleTree.Size(), hex.EncodeToString(b.MerkleTree.Root())[:16])
+
 	writeJSON(w, CreateIdentityResponse{
-		Success: true,
-		MpkHex:  hex.EncodeToString(mpkBytes),
-		Index:   index,
+		Success:          true,
+		MpkHex:           hex.EncodeToString(mpkBytes),
+		Index:            index,
+		MerkleRoot:       hex.EncodeToString(b.MerkleTree.Root()),
+		MerkleIndex:      merkleIndex,
+		AttributeCommit:  attrCommitHex,
+		NullifierSeedSet: credErr == nil,
 	})
 }
 
@@ -522,12 +609,74 @@ func (b *Bridge) HandleRegister(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
+	// ── VE-ASC Enhancement: Compute nullifiers + Merkle proof ──
+	serviceNameStr := req.ServiceName
+	attrs := &ve_asc.CredentialAttributes{
+		AgeBracket:        1, // default for registration
+		VerificationLevel: 1,
+		ExpiryEpoch:       b.VEASCParams.CurrentEpoch() + 365,
+		Issuer:            []byte("veriqid-bridge"),
+	}
+	cred, _ := ve_asc.Gen(b.VEASCParams, mskBytes, attrs)
+
+	var svcNull, epochNull, sessNull, merkleRootHex, merkleProofHex, attrProofHex string
+	var currentEpoch uint64
+
+	if cred != nil {
+		currentEpoch = b.VEASCParams.CurrentEpoch()
+
+		// Layer 1: Service nullifier (permanent Sybil resistance)
+		svcNull = hex.EncodeToString(ve_asc.ComputeNullifier(cred.NullifierSeed, serviceNameStr))
+
+		// Layer 2: Epoch nullifier (temporal re-registration)
+		epochNull = hex.EncodeToString(ve_asc.ComputeEpochNullifier(cred.NullifierSeed, serviceNameStr, currentEpoch))
+
+		// Layer 3: Session nullifier (replay protection)
+		sessNull = hex.EncodeToString(ve_asc.ComputeSessionNullifier(cred.NullifierSeed, serviceNameStr, challenge))
+
+		// Merkle root
+		merkleRootHex = hex.EncodeToString(b.MerkleTree.Root())
+
+		// Merkle membership proof (if this identity is in the tree)
+		if int(index) < b.MerkleTree.Size() {
+			proof, proofErr := b.MerkleTree.GenerateProof(int(index))
+			if proofErr == nil {
+				// Serialize proof as concatenated sibling hashes
+				var proofBytes []byte
+				for _, s := range proof.Siblings {
+					proofBytes = append(proofBytes, s...)
+				}
+				merkleProofHex = hex.EncodeToString(proofBytes)
+			}
+		}
+
+		// Attribute selective disclosure proof (prove "age >= 13" or "under 13")
+		disclosedAttrs := []string{"age_gte_13"}
+		if attrs.AgeBracket < 2 {
+			disclosedAttrs = []string{"age_under_13"}
+		}
+		attrProof, attrErr := ve_asc.ProveSelectiveDisclosure(b.VEASCParams, cred, disclosedAttrs, challenge)
+		if attrErr == nil {
+			attrProofJSON, _ := json.Marshal(attrProof)
+			attrProofHex = hex.EncodeToString(attrProofJSON)
+		}
+
+		log.Printf("VE-ASC: Registration proof — nullifier=%s... epoch=%d", svcNull[:16], currentEpoch)
+	}
+
 	writeJSON(w, RegisterResponse{
-		Success:       true,
-		ProofHex:      proofHex,
-		SpkHex:        hex.EncodeToString(spkBytes),
-		RingSize:      idsize.Int64(),
-		ContractIndex: int64(index),
+		Success:          true,
+		ProofHex:         proofHex,
+		SpkHex:           hex.EncodeToString(spkBytes),
+		RingSize:         idsize.Int64(),
+		ContractIndex:    int64(index),
+		ServiceNullifier: svcNull,
+		EpochNullifier:   epochNull,
+		SessionNullifier: sessNull,
+		CurrentEpoch:     currentEpoch,
+		MerkleRoot:       merkleRootHex,
+		MerkleProofHex:   merkleProofHex,
+		AttributeProof:   attrProofHex,
 	})
 }
 
@@ -597,17 +746,43 @@ func (b *Bridge) HandleAuth(w http.ResponseWriter, r *http.Request) {
 	// Generate auth proof
 	// AuthProof signature: func AuthProof(serviceName []byte, challenge []byte, mskBytes []byte) (string, bool)
 	// Returns the 65-byte proof already hex-encoded, and a success bool.
-	// NOTE: AuthProof does NOT return the spk separately — it's embedded in the proof flow.
-	// The spk can be re-derived deterministically from the same msk + service_name.
 	authProofHex, ok := u2sso.AuthProof(serviceName, challenge, mskBytes)
 	if !ok {
 		writeError(w, http.StatusInternalServerError, "failed to generate auth proof")
 		return
 	}
 
+	// ── VE-ASC Enhancement: Compute session + epoch nullifiers for auth ──
+	serviceNameStr := req.ServiceName
+	attrs := &ve_asc.CredentialAttributes{
+		AgeBracket:        1,
+		VerificationLevel: 1,
+		ExpiryEpoch:       b.VEASCParams.CurrentEpoch() + 365,
+		Issuer:            []byte("veriqid-bridge"),
+	}
+	cred, _ := ve_asc.Gen(b.VEASCParams, mskBytes, attrs)
+
+	var sessNull, epochNull string
+	var currentEpoch uint64
+
+	if cred != nil {
+		currentEpoch = b.VEASCParams.CurrentEpoch()
+
+		// Session nullifier: prevents replay of this specific auth
+		sessNull = hex.EncodeToString(ve_asc.ComputeSessionNullifier(cred.NullifierSeed, serviceNameStr, challenge))
+
+		// Epoch nullifier: proves this is within current time window
+		epochNull = hex.EncodeToString(ve_asc.ComputeEpochNullifier(cred.NullifierSeed, serviceNameStr, currentEpoch))
+
+		log.Printf("VE-ASC: Auth proof — session_null=%s... epoch=%d", sessNull[:16], currentEpoch)
+	}
+
 	writeJSON(w, AuthResponse{
-		Success:      true,
-		AuthProofHex: authProofHex,
+		Success:          true,
+		AuthProofHex:     authProofHex,
+		SessionNullifier: sessNull,
+		EpochNullifier:   epochNull,
+		CurrentEpoch:     currentEpoch,
 	})
 }
 
