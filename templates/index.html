@@ -4,13 +4,14 @@
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>{{.PlatformName}} — Powered by Veriqid</title>
+  <link rel="icon" type="image/png" href="/icons/Shield.png">
   <link rel="stylesheet" href="/static/base.css">
 </head>
 <body>
   <!-- Nav -->
   <nav class="vq-nav">
     <a href="/" class="vq-nav-brand">
-      <div class="vq-nav-brand-icon">🛡️</div>
+      <div class="vq-nav-brand-icon"><img src="/icons/Shield.png" alt="Veriqid"></div>
       <span class="vq-nav-brand-name">{{.PlatformName}}</span>
     </a>
     <ul class="vq-nav-links">
@@ -20,9 +21,9 @@
     </ul>
     <div class="vq-nav-action">
       {{if .LoggedIn}}
-      <a href="/dashboard" class="vq-btn-outline">📊 Dashboard</a>
+      <a href="/dashboard" class="vq-btn-outline">Dashboard</a>
       {{else}}
-      <a href="/login" class="vq-btn-outline">👤 Log In</a>
+      <a href="/login" class="vq-btn-outline">Log In</a>
       {{end}}
     </div>
   </nav>
@@ -43,7 +44,7 @@
   {{else}}
   <!-- Hero -->
   <section class="vq-hero">
-    <p class="vq-hero-subtitle">Your Privacy-First Platform</p>
+    <p class="vq-hero-subtitle">Privacy-First Verification</p>
     <h1 class="vq-hero-title">
       Verify Once,<br>
       Play <span class="accent">Everywhere</span>
@@ -55,27 +56,27 @@
 
     <div class="vq-stat-badges">
       <div class="vq-stat-badge">
-        <div class="vq-stat-badge-icon">🔐</div>
+        <div class="vq-stat-badge-icon"><img src="/icons/Lock.png" alt="Lock"></div>
         <div class="vq-stat-badge-label">Zero Knowledge</div>
         <div class="vq-stat-badge-value">100%</div>
       </div>
       <div class="vq-stat-badge">
-        <div class="vq-stat-badge-icon">🛡️</div>
+        <div class="vq-stat-badge-icon"><img src="/icons/Shield.png" alt="Shield"></div>
         <div class="vq-stat-badge-label">COPPA Compliant</div>
         <div class="vq-stat-badge-value">Yes</div>
       </div>
       <div class="vq-stat-badge">
-        <div class="vq-stat-badge-icon">⚡</div>
+        <div class="vq-stat-badge-icon"><img src="/icons/Lightning.png" alt="Lightning"></div>
         <div class="vq-stat-badge-label">Verification</div>
         <div class="vq-stat-badge-value">&lt;2s</div>
       </div>
     </div>
 
-    <div class="vq-review" style="margin-top: 48px;">
+    <div class="vq-review">
       <div class="vq-review-avatars">
-        <div class="vq-review-avatar">👧</div>
-        <div class="vq-review-avatar">👦</div>
-        <div class="vq-review-avatar">👩</div>
+        <div class="vq-review-avatar">&#x1F467;</div>
+        <div class="vq-review-avatar">&#x1F466;</div>
+        <div class="vq-review-avatar">&#x1F469;</div>
       </div>
       <div class="vq-review-score">4.9</div>
       <div>
@@ -89,22 +90,22 @@
   <section class="vq-features">
     <div class="vq-features-grid">
       <div class="vq-feature-card">
-        <div class="vq-feature-icon">🔒</div>
+        <div class="vq-feature-icon"><img src="/icons/Padlock.png" alt="Lock"></div>
         <div class="vq-feature-title">Zero Data Exposure</div>
         <div class="vq-feature-desc">Platforms learn only that your child is verified — nothing else. No names, no birthdates, no tracking.</div>
       </div>
       <div class="vq-feature-card highlighted">
-        <div class="vq-feature-icon">⚡</div>
+        <div class="vq-feature-icon"><img src="/icons/Lightning.png" alt="Lightning"></div>
         <div class="vq-feature-title">Instant Verification</div>
         <div class="vq-feature-desc">Cryptographic proof generation in under 2 seconds. The browser extension handles everything automatically.</div>
       </div>
       <div class="vq-feature-card">
-        <div class="vq-feature-icon">🌐</div>
+        <div class="vq-feature-icon"><img src="/icons/Globe.png" alt="Globe"></div>
         <div class="vq-feature-title">Cross-Platform</div>
         <div class="vq-feature-desc">One identity works across every Veriqid-enabled platform. Unlinkable pseudonyms protect privacy.</div>
       </div>
       <div class="vq-feature-card">
-        <div class="vq-feature-icon">👨‍👩‍👧</div>
+        <div class="vq-feature-icon"><img src="/icons/Family.png" alt="Family"></div>
         <div class="vq-feature-title">Parent Control</div>
         <div class="vq-feature-desc">Parents can revoke the master identity with a single click — immediately deactivating all platform accounts.</div>
       </div>

@@ -4,12 +4,13 @@
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>Sign Up — {{.PlatformName}}</title>
+  <link rel="icon" type="image/png" href="/icons/Shield.png">
   <link rel="stylesheet" href="/static/base.css">
 </head>
 <body>
   <nav class="vq-nav">
     <a href="/" class="vq-nav-brand">
-      <div class="vq-nav-brand-icon">🛡️</div>
+      <div class="vq-nav-brand-icon"><img src="/icons/Shield.png" alt="Veriqid"></div>
       <span class="vq-nav-brand-name">{{.PlatformName}}</span>
     </a>
     <ul class="vq-nav-links">
@@ -19,7 +20,7 @@
     </ul>
   </nav>
 
-  <div class="vq-form-page" style="min-height: calc(100vh - 70px);">
+  <div class="vq-form-page" style="min-height: calc(100vh - 72px);">
     <div class="vq-form-sidebar">
       <h1 class="vq-hero-title" style="font-size: 38px;">
         Join with<br><span class="accent">Zero</span> Data Exposure
@@ -29,12 +30,12 @@
       </p>
       <div class="vq-stat-badges">
         <div class="vq-stat-badge">
-          <div class="vq-stat-badge-icon">🔐</div>
+          <div class="vq-stat-badge-icon"><img src="/icons/Lock.png" alt="Lock"></div>
           <div class="vq-stat-badge-label">Privacy</div>
           <div class="vq-stat-badge-value">100%</div>
         </div>
         <div class="vq-stat-badge">
-          <div class="vq-stat-badge-icon">⚡</div>
+          <div class="vq-stat-badge-icon"><img src="/icons/Lightning.png" alt="Lightning"></div>
           <div class="vq-stat-badge-label">Auto-Fill</div>
           <div class="vq-stat-badge-value">On</div>
         </div>
@@ -47,7 +48,6 @@
         <p>Sign up with your Veriqid identity — no personal data required.</p>
 
         <form method="POST" action="/signup">
-          <!-- Hidden fields for extension detection -->
           <input type="hidden" id="veriqid-challenge" name="challenge" value="{{.Challenge}}">
           <input type="hidden" id="veriqid-service-name" name="sname" value="{{.ServiceName}}">
 
@@ -80,7 +80,7 @@
         </form>
 
         <p style="text-align: center; margin-top: 20px; font-size: 13px; color: var(--vq-gray-400);">
-          Already have an account? <a href="/login" style="color: var(--vq-accent); text-decoration: none;">Log In</a>
+          Already have an account? <a href="/login" style="color: var(--vq-accent); text-decoration: none; font-weight: 600;">Log In</a>
         </p>
       </div>
     </div>

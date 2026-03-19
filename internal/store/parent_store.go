@@ -191,6 +191,79 @@ func (s *Store) MarkChildRevoked(childID int64) error {
 	return err
 }
 
+// ── Platform Activity Methods ────────────────────────────────
+
+// PlatformActivity represents a platform registration/activity event.
+type PlatformActivity struct {
+	ID            int64
+	ContractIndex *int
+	ServiceName   string
+	SpkHex        string
+	EventType     string
+	EventTime     string
+	CreatedAt     string
+}
+
+// AddPlatformActivity records that a child interacted with a third-party platform.
+func (s *Store) AddPlatformActivity(contractIndex *int, serviceName, spkHex, eventType, eventTime string) error {
+	_, err := s.db.Exec(
+		`INSERT INTO platform_activity (contract_index, service_name, spk_hex, event_type, event_time) VALUES (?, ?, ?, ?, ?)`,
+		contractIndex, serviceName, spkHex, eventType, eventTime,
+	)
+	return err
+}
+
+// GetPlatformActivityByContractIndex returns platform events for a given contract_index.
+func (s *Store) GetPlatformActivityByContractIndex(contractIndex int) ([]PlatformActivity, error) {
+	rows, err := s.db.Query(
+		`SELECT id, contract_index, service_name, spk_hex, event_type, event_time, created_at
+		 FROM platform_activity WHERE contract_index = ? ORDER BY event_time DESC`,
+		contractIndex,
+	)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+
+	var activities []PlatformActivity
+	for rows.Next() {
+		a := PlatformActivity{}
+		err := rows.Scan(&a.ID, &a.ContractIndex, &a.ServiceName, &a.SpkHex, &a.EventType, &a.EventTime, &a.CreatedAt)
+		if err != nil {
+			return nil, err
+		}
+		activities = append(activities, a)
+	}
+	return activities, nil
+}
+
+// GetAllPlatformActivityForParent returns all platform activity for all children of a parent.
+func (s *Store) GetAllPlatformActivityForParent(parentID int64) ([]PlatformActivity, error) {
+	rows, err := s.db.Query(
+		`SELECT pa.id, pa.contract_index, pa.service_name, pa.spk_hex, pa.event_type, pa.event_time, pa.created_at
+		 FROM platform_activity pa
+		 INNER JOIN children c ON pa.contract_index = c.contract_index
+		 WHERE c.parent_id = ?
+		 ORDER BY pa.event_time DESC`,
+		parentID,
+	)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+
+	var activities []PlatformActivity
+	for rows.Next() {
+		a := PlatformActivity{}
+		err := rows.Scan(&a.ID, &a.ContractIndex, &a.ServiceName, &a.SpkHex, &a.EventType, &a.EventTime, &a.CreatedAt)
+		if err != nil {
+			return nil, err
+		}
+		activities = append(activities, a)
+	}
+	return activities, nil
+}
+
 // ── OTP Methods ─────────────────────────────────────────────
 
 // StoreOTP saves a 6-digit OTP for a phone number with 5-minute expiry.

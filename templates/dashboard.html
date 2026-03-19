@@ -4,12 +4,13 @@
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>Dashboard — {{.PlatformName}}</title>
+  <link rel="icon" type="image/png" href="/icons/Shield.png">
   <link rel="stylesheet" href="/static/base.css">
 </head>
 <body>
   <nav class="vq-nav">
     <a href="/" class="vq-nav-brand">
-      <div class="vq-nav-brand-icon">🛡️</div>
+      <div class="vq-nav-brand-icon"><img src="/icons/Shield.png" alt="Veriqid"></div>
       <span class="vq-nav-brand-name">{{.PlatformName}}</span>
     </a>
     <ul class="vq-nav-links">
@@ -56,8 +57,8 @@
     <div style="margin-top: 40px;">
       <div class="vq-dashboard-card" style="max-width: 600px;">
         <div class="vq-dashboard-card-title">Privacy Guarantee</div>
-        <p style="color: var(--vq-gray-300); line-height: 1.6; font-size: 14px;">
-          {{.PlatformName}} has <span class="accent" style="font-weight: 600;">zero knowledge</span> of your real identity.
+        <p style="color: var(--vq-gray-300); line-height: 1.7; font-size: 14px;">
+          {{.PlatformName}} has <span class="accent" style="font-weight: 700;">zero knowledge</span> of your real identity.
           Your account is tied only to a cryptographic pseudonym (SPK) that cannot be linked to your identity on any other platform.
           Even if {{.PlatformName}}'s database were breached, no personal information could be extracted.
         </p>

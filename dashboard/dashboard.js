@@ -14,9 +14,9 @@ let revokeChildID = null;     // For revoke modal
 const AGE_LABELS = { 0: 'Unknown', 1: 'Under 13', 2: 'Teen (13–17)', 3: 'Adult (18+)' };
 const AGE_COLORS = { 0: '#9ca3af', 1: '#fbbf24', 2: '#60a5fa', 3: '#4ade80' };
 const STATUS_CONFIG = {
-    pending:  { label: 'Pending', class: 'pending',  icon: '⏳' },
-    verified: { label: 'Active',  class: 'active',   icon: '✓' },
-    revoked:  { label: 'Revoked', class: 'revoked',  icon: '✗' }
+    pending:  { label: 'Pending', class: 'pending',  icon: '<img class="status-icon" src="/icons/Hourglass.png" alt="">' },
+    verified: { label: 'Active',  class: 'active',   icon: '<img class="status-icon" src="/icons/Check.png" alt="">' },
+    revoked:  { label: 'Revoked', class: 'revoked',  icon: '<img class="status-icon" src="/icons/X mark.png" alt="">' }
 };
 
 // ── Auth Tab Switching ───────────────────────────────────────
@@ -203,14 +203,87 @@ async function handleAddChild(e) {
 
         pendingChildID = data.child_id;
 
-        // Move to verification step
-        document.getElementById('verify-child-name').textContent = name;
-        document.getElementById('onboard-step1').style.display = 'none';
-        document.getElementById('onboard-step2').style.display = 'block';
+        // If the server returned a mnemonic phrase, show the portable key step
+        if (data.mnemonic) {
+            showMnemonicStep(name, data.mnemonic);
+        } else {
+            // Legacy fallback: go straight to verification step
+            document.getElementById('verify-child-name').textContent = name;
+            document.getElementById('onboard-step1').style.display = 'none';
+            document.getElementById('onboard-step2').style.display = 'block';
+        }
 
     } catch (err) {
         alert('Network error.');
     }
+}
+
+// ── Mnemonic Display Step ────────────────────────────────────
+function showMnemonicStep(childName, phrase) {
+    // Hide other steps, show mnemonic step
+    document.getElementById('onboard-step1').style.display = 'none';
+    document.getElementById('onboard-step2').style.display = 'none';
+    document.getElementById('onboard-step3').style.display = 'none';
+
+    // Create the mnemonic display step if it doesn't exist
+    let mnemonicStep = document.getElementById('onboard-step-mnemonic');
+    if (!mnemonicStep) {
+        mnemonicStep = document.createElement('div');
+        mnemonicStep.id = 'onboard-step-mnemonic';
+        mnemonicStep.className = 'onboard-step';
+        document.querySelector('.onboarding-card').appendChild(mnemonicStep);
+    }
+
+    const words = phrase.split(' ');
+    const wordGrid = words.map((w, i) =>
+        `<div class="mnemonic-word"><span class="mnemonic-num">${i + 1}</span>${w}</div>`
+    ).join('');
+
+    mnemonicStep.innerHTML = `
+        <div class="mnemonic-header">
+            <div class="mnemonic-icon"><img src="/icons/Key.png" alt="Key" style="width:48px;height:48px;object-fit:contain;"></div>
+            <h2>Portable Key for ${childName}</h2>
+            <p>This 12-word phrase is your child's identity key. Give it to <strong>${childName}</strong> to paste into their Veriqid browser extension.</p>
+        </div>
+
+        <div class="mnemonic-box">
+            <div class="mnemonic-grid">${wordGrid}</div>
+        </div>
+
+        <div class="mnemonic-actions">
+            <button class="vq-btn-secondary" onclick="copyMnemonic('${phrase}')">
+                Copy to Clipboard
+            </button>
+            <span id="copy-feedback" class="copy-feedback" style="display:none">Copied!</span>
+        </div>
+
+        <div class="mnemonic-warning">
+            <strong><img src="/icons/Warning.png" alt="" style="width:14px;height:14px;vertical-align:-2px;margin-right:3px;">Important:</strong> This phrase is shown only once. If lost, you'll need to create a new key.
+            The phrase gives full access to this identity — keep it private between you and your child.
+        </div>
+
+        <button class="vq-btn-primary btn-full" onclick="mnemonicConfirmed()">
+            I've Saved the Phrase — Continue to Verification
+        </button>
+    `;
+    mnemonicStep.style.display = 'block';
+}
+
+function copyMnemonic(phrase) {
+    navigator.clipboard.writeText(phrase).then(() => {
+        const fb = document.getElementById('copy-feedback');
+        fb.style.display = 'inline';
+        setTimeout(() => { fb.style.display = 'none'; }, 2000);
+    });
+}
+
+function mnemonicConfirmed() {
+    // Hide mnemonic step, show verification step
+    document.getElementById('onboard-step-mnemonic').style.display = 'none';
+    const childName = document.getElementById('onboard-step-mnemonic')
+        .querySelector('h2').textContent.replace('Portable Key for ', '');
+    document.getElementById('verify-child-name').textContent = childName;
+    document.getElementById('onboard-step2').style.display = 'block';
 }
 
 // ── Verification ─────────────────────────────────────────────
@@ -239,7 +312,7 @@ async function simulateVerification() {
         if (!res.ok) {
             alert(data.error || 'Verification failed.');
             btn.disabled = false;
-            btn.textContent = '✓ Simulate Verification Approval';
+            btn.textContent = 'Simulate Verification Approval';
             return;
         }
 
@@ -252,7 +325,7 @@ async function simulateVerification() {
     } catch (err) {
         alert('Network error.');
         btn.disabled = false;
-        btn.textContent = '✓ Simulate Verification Approval';
+        btn.textContent = 'Simulate Verification Approval';
     }
 }
 
@@ -298,7 +371,7 @@ function renderChildren(children) {
         } else if (child.status === 'pending') {
             actionBtn = `<button class="vq-btn-primary btn-sm" onclick="showOnboarding()">Complete Verification</button>`;
         } else {
-            actionBtn = `<div class="btn-revoked">✗ Revoked</div>`;
+            actionBtn = `<div class="btn-revoked"><img src="/icons/X mark.png" alt="" style="width:12px;height:12px;vertical-align:-1px;margin-right:4px;">Revoked</div>`;
         }
 
         return `
@@ -346,10 +419,31 @@ async function loadEvents() {
         countEl.textContent = `${data.events.length} event${data.events.length !== 1 ? 's' : ''}`;
         logEl.innerHTML = data.events.map(evt => {
             const isRevoke = evt.type === 'revoked';
+            const isPlatform = evt.type.startsWith('platform_');
+
+            if (isPlatform) {
+                // Platform activity events (e.g., "Alex registered on KidsTube")
+                const platformEvent = evt.type.replace('platform_', '');
+                const platformIcon = platformEvent === 'registered' ? '<img src="/icons/Globe.png" alt="" style="width:16px;height:16px;">' : '<img src="/icons/Warning.png" alt="" style="width:16px;height:16px;">';
+                const platformLabel = platformEvent === 'registered' ? 'Joined' : platformEvent;
+                const timeStr = evt.event_time ? new Date(evt.event_time).toLocaleString() : '';
+                return `
+                    <div class="activity-item platform-event">
+                        <div class="activity-icon platform">
+                            ${platformIcon}
+                        </div>
+                        <div class="activity-content">
+                            <div class="activity-title">${evt.child_name || 'Identity'} — ${platformLabel} <strong>${evt.service_name || 'a platform'}</strong></div>
+                            <div class="activity-desc">${timeStr ? timeStr + ' · ' : ''}Contract index: ${evt.contract_index}</div>
+                        </div>
+                    </div>
+                `;
+            }
+
             return `
                 <div class="activity-item">
                     <div class="activity-icon ${isRevoke ? 'revoked' : 'registered'}">
-                        ${isRevoke ? '✗' : '✓'}
+                        ${isRevoke ? '<img src="/icons/X mark.png" alt="" style="width:14px;height:14px;">' : '<img src="/icons/Check.png" alt="" style="width:14px;height:14px;">'}
                     </div>
                     <div class="activity-content">
                         <div class="activity-title">${evt.child_name || 'Identity'} — ${isRevoke ? 'Revoked' : 'Registered'}</div>

@@ -89,6 +89,18 @@ func NewStore(dbPath string) (*Store, error) {
 		used        BOOLEAN DEFAULT 0,
 		created_at  DATETIME DEFAULT CURRENT_TIMESTAMP
 	);
+
+	CREATE TABLE IF NOT EXISTS platform_activity (
+		id              INTEGER PRIMARY KEY AUTOINCREMENT,
+		contract_index  INTEGER,
+		service_name    TEXT NOT NULL,
+		spk_hex         TEXT NOT NULL,
+		event_type      TEXT NOT NULL,
+		event_time      DATETIME NOT NULL,
+		created_at      DATETIME DEFAULT CURRENT_TIMESTAMP
+	);
+
+	CREATE INDEX IF NOT EXISTS idx_platform_activity_contract ON platform_activity(contract_index);
 	`
 
 	if _, err := db.Exec(parentSchema); err != nil {

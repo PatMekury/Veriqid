@@ -4,12 +4,13 @@
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>Log In — {{.PlatformName}}</title>
+  <link rel="icon" type="image/png" href="/icons/Shield.png">
   <link rel="stylesheet" href="/static/base.css">
 </head>
 <body>
   <nav class="vq-nav">
     <a href="/" class="vq-nav-brand">
-      <div class="vq-nav-brand-icon">🛡️</div>
+      <div class="vq-nav-brand-icon"><img src="/icons/Shield.png" alt="Veriqid"></div>
       <span class="vq-nav-brand-name">{{.PlatformName}}</span>
     </a>
     <ul class="vq-nav-links">
@@ -19,7 +20,7 @@
     </ul>
   </nav>
 
-  <div class="vq-form-page" style="min-height: calc(100vh - 70px);">
+  <div class="vq-form-page" style="min-height: calc(100vh - 72px);">
     <div class="vq-form-sidebar">
       <h1 class="vq-hero-title" style="font-size: 38px;">
         Welcome<br><span class="accent">Back</span>
@@ -59,7 +60,7 @@
         </form>
 
         <p style="text-align: center; margin-top: 20px; font-size: 13px; color: var(--vq-gray-400);">
-          Don't have an account? <a href="/signup" style="color: var(--vq-accent); text-decoration: none;">Sign Up</a>
+          Don't have an account? <a href="/signup" style="color: var(--vq-accent); text-decoration: none; font-weight: 600;">Sign Up</a>
         </p>
       </div>
     </div>

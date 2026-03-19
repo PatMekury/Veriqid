@@ -4,12 +4,13 @@
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>{{.Title}} — {{.PlatformName}}</title>
+  <link rel="icon" type="image/png" href="/icons/Shield.png">
   <link rel="stylesheet" href="/static/base.css">
 </head>
 <body>
   <nav class="vq-nav">
     <a href="/" class="vq-nav-brand">
-      <div class="vq-nav-brand-icon">🛡️</div>
+      <div class="vq-nav-brand-icon"><img src="/icons/Shield.png" alt="Veriqid"></div>
       <span class="vq-nav-brand-name">{{.PlatformName}}</span>
     </a>
   </nav>
@@ -17,12 +18,16 @@
   <div class="vq-result-page">
     <div class="vq-result-box">
       {{if .Success}}
-      <div class="vq-result-icon success">✓</div>
+      <div class="vq-result-icon success">
+        <img src="/icons/Checkmark.png" alt="Success" style="width: 40px; height: 40px; object-fit: contain;">
+      </div>
       <h2 class="vq-result-title">{{.Title}}</h2>
       <p class="vq-result-desc">{{.Message}}</p>
       <a href="/dashboard" class="vq-btn-primary">Go to Dashboard</a>
       {{else}}
-      <div class="vq-result-icon failure">✗</div>
+      <div class="vq-result-icon failure">
+        <img src="/icons/Warning.png" alt="Error" style="width: 40px; height: 40px; object-fit: contain;">
+      </div>
       <h2 class="vq-result-title">{{.Title}}</h2>
       <p class="vq-result-desc">{{.Message}}</p>
       <a href="/" class="vq-btn-secondary">Back to Home</a>

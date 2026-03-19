@@ -1,0 +1,62 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Veriqid Portable</title>
+  <link rel="stylesheet" href="popup.css">
+</head>
+<body>
+  <!-- SETUP SCREEN: paste mnemonic -->
+  <div id="screen-setup" class="screen">
+    <div class="header">
+      <div class="shield-icon"><img src="icons/icon48.png" alt="Veriqid" style="width: 36px; height: 36px; object-fit: contain;"></div>
+      <h1>Veriqid</h1>
+      <p class="subtitle">Paste your 12-word phrase to get started</p>
+    </div>
+
+    <div class="form-group">
+      <label for="mnemonic-input">Your Secret Phrase</label>
+      <textarea id="mnemonic-input" rows="3"
+        placeholder="apple bridge castle dolphin eagle frost garden honey island jewel kite lemon"></textarea>
+      <p class="hint">Ask your parent for this phrase — it's your private identity key.</p>
+    </div>
+
+    <div id="setup-error" class="error-msg" style="display:none"></div>
+
+    <button id="btn-activate" class="btn-primary">
+      Activate My Key
+    </button>
+  </div>
+
+  <!-- ACTIVE SCREEN: key loaded -->
+  <div id="screen-active" class="screen" style="display:none">
+    <div class="header">
+      <div class="shield-icon active"><img src="icons/icon48.png" alt="Veriqid" style="width: 36px; height: 36px; object-fit: contain;"></div>
+      <h1>You're Protected</h1>
+      <p class="subtitle">Your Veriqid identity is active</p>
+    </div>
+
+    <div class="status-card">
+      <div class="status-row">
+        <span class="status-label">Bridge</span>
+        <span id="bridge-status" class="status-value">Checking...</span>
+      </div>
+      <div class="status-row">
+        <span class="status-label">Key</span>
+        <span id="key-status" class="status-value">Loaded</span>
+      </div>
+    </div>
+
+    <p class="info-text">
+      Visit any Veriqid-compatible website and your identity will be verified automatically.
+    </p>
+
+    <button id="btn-clear" class="btn-secondary">
+      Remove Key
+    </button>
+  </div>
+
+  <script src="popup.js"></script>
+</body>
+</html>

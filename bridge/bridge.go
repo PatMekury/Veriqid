@@ -112,7 +112,13 @@ func connectToContract(rpcURL, contractAddr string) (*ethclient.Client, *u2sso.V
 // CreateIdentityRequest holds the parameters for creating a new identity.
 type CreateIdentityRequest struct {
 	// Keypath is the filesystem path where the 32-byte msk will be saved.
+	// Either Keypath or MskHex must be provided.
 	Keypath string `json:"keypath"`
+
+	// MskHex is the hex-encoded 32-byte master secret key (alternative to Keypath).
+	// When provided, the bridge registers this specific MSK instead of generating a new one.
+	// This enables the portable extension flow where the MSK is derived from a mnemonic.
+	MskHex string `json:"msk_hex,omitempty"`
 
 	// EthKey is the Ethereum private key (hex, WITHOUT 0x prefix) for gas.
 	EthKey string `json:"ethkey"`
@@ -130,7 +136,13 @@ type CreateIdentityRequest struct {
 // RegisterRequest holds the parameters for generating a registration proof.
 type RegisterRequest struct {
 	// Keypath to the master secret key file (must already exist).
+	// Either Keypath or MskHex must be provided.
 	Keypath string `json:"keypath"`
+
+	// MskHex is the hex-encoded 32-byte master secret key (alternative to Keypath).
+	// When provided, the bridge uses this directly instead of reading from a file.
+	// This enables the extension to send the MSK from its in-memory storage.
+	MskHex string `json:"msk_hex,omitempty"`
 
 	// ServiceName is the hex-encoded SHA-256 hash of the service name.
 	ServiceName string `json:"service_name"`
@@ -148,7 +160,11 @@ type RegisterRequest struct {
 // AuthRequest holds the parameters for generating an authentication proof.
 type AuthRequest struct {
 	// Keypath to the master secret key file.
+	// Either Keypath or MskHex must be provided.
 	Keypath string `json:"keypath"`
+
+	// MskHex is the hex-encoded 32-byte master secret key (alternative to Keypath).
+	MskHex string `json:"msk_hex,omitempty"`
 
 	// ServiceName is the hex-encoded SHA-256 hash of the service name.
 	ServiceName string `json:"service_name"`
@@ -183,11 +199,12 @@ type CreateIdentityResponse struct {
 
 // RegisterResponse is returned after generating a registration proof.
 type RegisterResponse struct {
-	Success  bool   `json:"success"`
-	ProofHex string `json:"proof_hex,omitempty"`
-	SpkHex   string `json:"spk_hex,omitempty"`
-	RingSize int64  `json:"ring_size,omitempty"`
-	Error    string `json:"error,omitempty"`
+	Success       bool   `json:"success"`
+	ProofHex      string `json:"proof_hex,omitempty"`
+	SpkHex        string `json:"spk_hex,omitempty"`
+	RingSize      int64  `json:"ring_size,omitempty"`
+	ContractIndex int64  `json:"contract_index,omitempty"`
+	Error         string `json:"error,omitempty"`
 }
 
 // AuthResponse is returned after generating an authentication proof.
@@ -305,8 +322,8 @@ func (b *Bridge) HandleCreateIdentity(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	if req.Keypath == "" {
-		writeError(w, http.StatusBadRequest, "keypath is required")
+	if req.Keypath == "" && req.MskHex == "" {
+		writeError(w, http.StatusBadRequest, "either keypath or msk_hex is required")
 		return
 	}
 	if req.EthKey == "" {
@@ -329,17 +346,31 @@ func (b *Bridge) HandleCreateIdentity(w http.ResponseWriter, r *http.Request) {
 	}
 	_ = ethClient // used implicitly by instance
 
-	// Step 1: Create 32-byte msk via OpenSSL RAND_bytes, save to disk
-	if err := u2sso.CreatePasskey(req.Keypath); err != nil {
-		writeError(w, http.StatusInternalServerError, "failed to create passkey: "+err.Error())
-		return
-	}
+	var mskBytes []byte
 
-	// Step 2: Load msk back from disk
-	mskBytes, ok := u2sso.LoadPasskey(req.Keypath)
-	if !ok {
-		writeError(w, http.StatusInternalServerError, "failed to load passkey after creation")
-		return
+	if req.MskHex != "" {
+		// Portable extension flow: MSK provided directly as hex
+		var decodeErr error
+		mskBytes, decodeErr = hex.DecodeString(req.MskHex)
+		if decodeErr != nil || len(mskBytes) != 32 {
+			writeError(w, http.StatusBadRequest, "msk_hex must be exactly 64 hex characters (32 bytes)")
+			return
+		}
+	} else {
+		// Standard flow: generate new random key and save to disk
+		// Step 1: Create 32-byte msk via OpenSSL RAND_bytes, save to disk
+		if err := u2sso.CreatePasskey(req.Keypath); err != nil {
+			writeError(w, http.StatusInternalServerError, "failed to create passkey: "+err.Error())
+			return
+		}
+
+		// Step 2: Load msk back from disk
+		var ok bool
+		mskBytes, ok = u2sso.LoadPasskey(req.Keypath)
+		if !ok {
+			writeError(w, http.StatusInternalServerError, "failed to load passkey after creation")
+			return
+		}
 	}
 
 	// Step 3: Derive 33-byte compressed mpk via secp256k1_boquila_gen_mpk
@@ -381,8 +412,12 @@ func (b *Bridge) HandleRegister(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	if req.Keypath == "" || req.ServiceName == "" || req.Challenge == "" {
-		writeError(w, http.StatusBadRequest, "keypath, service_name, and challenge are all required")
+	if req.Keypath == "" && req.MskHex == "" {
+		writeError(w, http.StatusBadRequest, "either keypath or msk_hex is required")
+		return
+	}
+	if req.ServiceName == "" || req.Challenge == "" {
+		writeError(w, http.StatusBadRequest, "service_name and challenge are required")
 		return
 	}
 
@@ -412,11 +447,25 @@ func (b *Bridge) HandleRegister(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	// Load the master secret key
-	mskBytes, ok := u2sso.LoadPasskey(req.Keypath)
-	if !ok {
-		writeError(w, http.StatusInternalServerError, "failed to load passkey from "+req.Keypath)
-		return
+	// Load the master secret key — from hex (new extension) or from file (legacy)
+	var mskBytes []byte
+	if req.MskHex != "" {
+		mskBytes, err = hex.DecodeString(req.MskHex)
+		if err != nil {
+			writeError(w, http.StatusBadRequest, "msk_hex must be valid hex: "+err.Error())
+			return
+		}
+		if len(mskBytes) != 32 {
+			writeError(w, http.StatusBadRequest, "msk_hex must decode to exactly 32 bytes")
+			return
+		}
+	} else {
+		var ok bool
+		mskBytes, ok = u2sso.LoadPasskey(req.Keypath)
+		if !ok {
+			writeError(w, http.StatusInternalServerError, "failed to load passkey from "+req.Keypath)
+			return
+		}
 	}
 
 	// Get total ID count from contract
@@ -474,10 +523,11 @@ func (b *Bridge) HandleRegister(w http.ResponseWriter, r *http.Request) {
 	}
 
 	writeJSON(w, RegisterResponse{
-		Success:  true,
-		ProofHex: proofHex,
-		SpkHex:   hex.EncodeToString(spkBytes),
-		RingSize: idsize.Int64(),
+		Success:       true,
+		ProofHex:      proofHex,
+		SpkHex:        hex.EncodeToString(spkBytes),
+		RingSize:      idsize.Int64(),
+		ContractIndex: int64(index),
 	})
 }
 
@@ -502,8 +552,12 @@ func (b *Bridge) HandleAuth(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	if req.Keypath == "" || req.ServiceName == "" || req.Challenge == "" {
-		writeError(w, http.StatusBadRequest, "keypath, service_name, and challenge are all required")
+	if req.Keypath == "" && req.MskHex == "" {
+		writeError(w, http.StatusBadRequest, "either keypath or msk_hex is required")
+		return
+	}
+	if req.ServiceName == "" || req.Challenge == "" {
+		writeError(w, http.StatusBadRequest, "service_name and challenge are required")
 		return
 	}
 
@@ -519,11 +573,25 @@ func (b *Bridge) HandleAuth(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	// Load master secret key
-	mskBytes, ok := u2sso.LoadPasskey(req.Keypath)
-	if !ok {
-		writeError(w, http.StatusInternalServerError, "failed to load passkey from "+req.Keypath)
-		return
+	// Load master secret key — from hex (new extension) or from file (legacy)
+	var mskBytes []byte
+	if req.MskHex != "" {
+		mskBytes, err = hex.DecodeString(req.MskHex)
+		if err != nil {
+			writeError(w, http.StatusBadRequest, "msk_hex must be valid hex: "+err.Error())
+			return
+		}
+		if len(mskBytes) != 32 {
+			writeError(w, http.StatusBadRequest, "msk_hex must decode to exactly 32 bytes")
+			return
+		}
+	} else {
+		var ok bool
+		mskBytes, ok = u2sso.LoadPasskey(req.Keypath)
+		if !ok {
+			writeError(w, http.StatusInternalServerError, "failed to load passkey from "+req.Keypath)
+			return
+		}
 	}
 
 	// Generate auth proof

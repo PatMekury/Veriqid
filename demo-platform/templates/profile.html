@@ -1,0 +1,86 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Profile — KidsTube</title>
+    <link rel="stylesheet" href="/static/css/kidstube.css">
+</head>
+<body class="app-body">
+    <header class="app-header">
+        <a href="/home" class="logo">
+            <span class="logo-icon">&#9654;</span>
+            <span class="logo-text">KidsTube</span>
+        </a>
+        <div class="header-right">
+            <a href="/home" class="btn btn-small btn-outline">&larr; Back to Videos</a>
+            <a href="/logout" class="btn btn-small btn-ghost">Log Out</a>
+        </div>
+    </header>
+
+    <main class="profile-main">
+        <div class="profile-card">
+            <div class="profile-avatar">
+                <span>{{slice .Username 0 1}}</span>
+            </div>
+            <h1>{{.Username}}</h1>
+            <div class="profile-verified">
+                <span>&#128737;</span> Verified with Veriqid
+            </div>
+
+            <div class="profile-details">
+                <div class="detail-row">
+                    <span class="detail-label">Display Name</span>
+                    <span class="detail-value">{{.Username}}</span>
+                </div>
+                <div class="detail-row">
+                    <span class="detail-label">Pseudonymous ID</span>
+                    <span class="detail-value mono">{{.SPKShort}}</span>
+                </div>
+                <div class="detail-row">
+                    <span class="detail-label">Platform</span>
+                    <span class="detail-value">{{.ServiceName}}</span>
+                </div>
+                <div class="detail-row">
+                    <span class="detail-label">Session Started</span>
+                    <span class="detail-value">{{.CreatedAt}}</span>
+                </div>
+            </div>
+
+            <div class="privacy-info">
+                <h3>&#128274; What KidsTube Knows About You</h3>
+                <div class="privacy-grid">
+                    <div class="privacy-item yes">
+                        <span class="check">&#10003;</span>
+                        You are a verified child
+                    </div>
+                    <div class="privacy-item no">
+                        <span class="cross">&#10007;</span>
+                        Your real name
+                    </div>
+                    <div class="privacy-item no">
+                        <span class="cross">&#10007;</span>
+                        Your exact age
+                    </div>
+                    <div class="privacy-item no">
+                        <span class="cross">&#10007;</span>
+                        Your parent's info
+                    </div>
+                    <div class="privacy-item no">
+                        <span class="cross">&#10007;</span>
+                        Your accounts on other platforms
+                    </div>
+                    <div class="privacy-item no">
+                        <span class="cross">&#10007;</span>
+                        Any government ID
+                    </div>
+                </div>
+                <p class="privacy-note">
+                    Your pseudonymous ID (<code>{{.SPKShort}}</code>) is unique to KidsTube
+                    and cannot be linked to your identity on any other platform.
+                </p>
+            </div>
+        </div>
+    </main>
+</body>
+</html>

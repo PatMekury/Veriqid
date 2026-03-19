@@ -1,0 +1,225 @@
+/* ═══════════════════════════════════════════════════════════════
+   Veriqid Portable Extension — Popup Styles v2.0
+   ═══════════════════════════════════════════════════════════════ */
+
+@import url('https://api.fontshare.com/v2/css?f[]=satoshi@400;500;600;700&display=swap');
+
+:root {
+  --vq-dark: #080E1A;
+  --vq-dark-mid: #0D1526;
+  --vq-dark-light: #141E33;
+  --vq-accent: #C5F536;
+  --vq-accent-hover: #B4E22E;
+  --vq-accent-muted: rgba(197, 245, 54, 0.12);
+  --vq-white: #F8FAFC;
+  --vq-gray-200: #CBD5E1;
+  --vq-gray-300: #94A3B8;
+  --vq-gray-400: #64748B;
+  --vq-gray-500: #475569;
+  --vq-error: #FB7185;
+  --vq-success: #34D399;
+  --vq-ease-out: cubic-bezier(0.25, 0, 0, 1);
+}
+
+* {
+  margin: 0;
+  padding: 0;
+  box-sizing: border-box;
+}
+
+body {
+  width: 340px;
+  font-family: 'Satoshi', -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
+  background: var(--vq-dark);
+  color: var(--vq-white);
+}
+
+.screen {
+  padding: 28px 22px;
+}
+
+/* ── Header ── */
+
+.header {
+  text-align: center;
+  margin-bottom: 22px;
+}
+
+.shield-icon {
+  margin-bottom: 10px;
+  opacity: 0.7;
+  transition: opacity 0.3s var(--vq-ease-out), filter 0.3s var(--vq-ease-out);
+}
+
+.shield-icon.active {
+  opacity: 1;
+  filter: drop-shadow(0 0 12px rgba(197, 245, 54, 0.35));
+}
+
+h1 {
+  font-size: 20px;
+  font-weight: 700;
+  margin-bottom: 4px;
+  letter-spacing: -0.3px;
+}
+
+.subtitle {
+  font-size: 13px;
+  color: var(--vq-gray-300);
+  line-height: 1.4;
+}
+
+/* ── Form ── */
+
+.form-group {
+  margin-bottom: 16px;
+}
+
+.form-group label {
+  display: block;
+  font-size: 11px;
+  font-weight: 700;
+  color: var(--vq-gray-200);
+  margin-bottom: 6px;
+  text-transform: uppercase;
+  letter-spacing: 0.8px;
+}
+
+textarea {
+  width: 100%;
+  background: var(--vq-dark-mid);
+  border: 1.5px solid rgba(255, 255, 255, 0.08);
+  border-radius: 10px;
+  padding: 12px 14px;
+  color: var(--vq-white);
+  font-family: 'JetBrains Mono', 'Fira Code', monospace;
+  font-size: 13px;
+  line-height: 1.5;
+  resize: none;
+  outline: none;
+  transition: border-color 0.2s var(--vq-ease-out), box-shadow 0.2s var(--vq-ease-out);
+}
+
+textarea:focus {
+  border-color: var(--vq-accent);
+  box-shadow: 0 0 0 3px var(--vq-accent-muted);
+}
+
+textarea::placeholder {
+  color: var(--vq-gray-500);
+  font-style: italic;
+}
+
+.hint {
+  font-size: 11px;
+  color: var(--vq-gray-500);
+  margin-top: 6px;
+}
+
+/* ── Buttons ── */
+
+.btn-primary {
+  width: 100%;
+  padding: 12px;
+  background: var(--vq-accent);
+  color: var(--vq-dark);
+  border: none;
+  border-radius: 10px;
+  font-size: 14px;
+  font-weight: 700;
+  font-family: 'Satoshi', sans-serif;
+  cursor: pointer;
+  transition: all 0.2s var(--vq-ease-out);
+  box-shadow: 0 2px 12px rgba(197,245,54,0.2);
+  letter-spacing: -0.2px;
+}
+
+.btn-primary:hover {
+  background: var(--vq-accent-hover);
+  box-shadow: 0 4px 20px rgba(197,245,54,0.3);
+}
+
+.btn-primary:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+  box-shadow: none;
+}
+
+.btn-secondary {
+  width: 100%;
+  padding: 10px;
+  background: transparent;
+  color: var(--vq-gray-300);
+  border: 1.5px solid rgba(255, 255, 255, 0.08);
+  border-radius: 10px;
+  font-size: 13px;
+  font-weight: 500;
+  font-family: 'Satoshi', sans-serif;
+  cursor: pointer;
+  transition: all 0.2s var(--vq-ease-out);
+}
+
+.btn-secondary:hover {
+  border-color: var(--vq-error);
+  color: var(--vq-error);
+}
+
+/* ── Status Card ── */
+
+.status-card {
+  background: var(--vq-dark-mid);
+  border: 1px solid rgba(255, 255, 255, 0.06);
+  border-radius: 12px;
+  padding: 14px 16px;
+  margin-bottom: 16px;
+}
+
+.status-row {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: 7px 0;
+}
+
+.status-row + .status-row {
+  border-top: 1px solid rgba(255, 255, 255, 0.04);
+}
+
+.status-label {
+  font-size: 12px;
+  color: var(--vq-gray-400);
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.3px;
+}
+
+.status-value {
+  font-size: 12px;
+  font-weight: 600;
+}
+
+.status-value.connected { color: var(--vq-success); }
+.status-value.disconnected { color: var(--vq-error); }
+
+/* ── Error ── */
+
+.error-msg {
+  background: rgba(251, 113, 133, 0.08);
+  border: 1px solid rgba(251, 113, 133, 0.2);
+  border-radius: 10px;
+  padding: 10px 12px;
+  font-size: 12px;
+  color: var(--vq-error);
+  margin-bottom: 12px;
+  line-height: 1.4;
+}
+
+/* ── Info Text ── */
+
+.info-text {
+  font-size: 12px;
+  color: var(--vq-gray-300);
+  text-align: center;
+  line-height: 1.5;
+  margin-bottom: 16px;
+}

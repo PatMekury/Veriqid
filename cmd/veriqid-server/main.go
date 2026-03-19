@@ -21,6 +21,7 @@ import (
 	"github.com/ethereum/go-ethereum/common"
 	"github.com/ethereum/go-ethereum/ethclient"
 
+	"github.com/patmekury/veriqid/internal/mnemonic"
 	"github.com/patmekury/veriqid/internal/parent"
 	"github.com/patmekury/veriqid/internal/session"
 	"github.com/patmekury/veriqid/internal/store"
@@ -55,9 +56,10 @@ type Server struct {
 
 	EthClient *ethclient.Client
 	Contract  *u2sso.Veriqid
+	EthKey    string // Deployer private key (hex, no 0x) for on-chain registration
 }
 
-func NewServer(platformName, contractAddr, rpcURL, dbPath, masterSecret string) (*Server, error) {
+func NewServer(platformName, contractAddr, rpcURL, dbPath, masterSecret, ethKey string) (*Server, error) {
 	// Hash the service name (same as Phase 1 server)
 	h := sha256.Sum256([]byte(platformName))
 	serviceHex := hex.EncodeToString(h[:])
@@ -116,6 +118,7 @@ func NewServer(platformName, contractAddr, rpcURL, dbPath, masterSecret string) 
 		Tmpl:           tmpl,
 		EthClient:      client,
 		Contract:       contract,
+		EthKey:         ethKey,
 	}, nil
 }
 
@@ -931,9 +934,9 @@ func (s *Server) handleAddChild(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	// Generate the child's master secret key (msk) — 32 random bytes
-	msk := make([]byte, 32)
-	if _, err := rand.Read(msk); err != nil {
+	// Generate a 12-word mnemonic phrase → derive 32-byte MSK via SHA-256
+	phrase, msk, err := mnemonic.Generate()
+	if err != nil {
 		http.Error(w, `{"error":"failed to generate key"}`, http.StatusInternalServerError)
 		return
 	}
@@ -949,7 +952,7 @@ func (s *Server) handleAddChild(w http.ResponseWriter, r *http.Request) {
 		mpkHex = hex.EncodeToString(mpkBytes)
 	}
 
-	// Encrypt msk for storage
+	// Encrypt msk for storage (server keeps encrypted copy for recovery)
 	encKey := parent.DeriveEncryptionKey(s.masterSecret)
 	mskEnc, err := parent.EncryptPrivateKey(mskHex, encKey)
 	if err != nil {
@@ -964,14 +967,18 @@ func (s *Server) handleAddChild(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	log.Printf("SUCCESS: Child '%s' added for parent %d (childID=%d)", req.DisplayName, parentID, childID)
+	log.Printf("SUCCESS: Child '%s' added for parent %d (childID=%d) — mnemonic generated", req.DisplayName, parentID, childID)
 
+	// Return the mnemonic phrase — this is shown ONCE to the parent.
+	// The parent gives the phrase to the child, who enters it in the browser extension.
+	// The server does NOT store the plaintext mnemonic or MSK after this response.
 	w.Header().Set("Content-Type", "application/json")
 	json.NewEncoder(w).Encode(map[string]interface{}{
-		"success":  true,
-		"child_id": childID,
-		"status":   "pending",
-		"message":  "Child added. Complete verification to activate the identity.",
+		"success":   true,
+		"child_id":  childID,
+		"status":    "pending",
+		"mnemonic":  phrase,
+		"message":   "Child added. Give the 12-word phrase to your child to paste in their Veriqid extension.",
 	})
 }
 
@@ -1076,18 +1083,27 @@ func (s *Server) handleVerifyApprove(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	// For hackathon demo: simulate on-chain registration
-	// In production, this would call addID() on the contract via the deployer key
-	// For now, just mark as verified with a dummy contract index
-	contractIndex := int(child.ID) // Use child DB ID as placeholder contract index
+	// Register identity on-chain via smart contract
+	if child.MpkHex == nil || *child.MpkHex == "" {
+		http.Error(w, `{"error":"child has no MPK — cannot register on-chain"}`, http.StatusInternalServerError)
+		return
+	}
 
-	log.Printf("VERIFY: Simulating on-chain registration for child '%s' (mpk=%s)",
-		child.DisplayName, func() string {
-			if child.MpkHex != nil && len(*child.MpkHex) > 16 {
-				return (*child.MpkHex)[:16] + "..."
-			}
-			return "nil"
-		}())
+	mpkBytes, err := hex.DecodeString(*child.MpkHex)
+	if err != nil {
+		http.Error(w, `{"error":"invalid MPK hex"}`, http.StatusInternalServerError)
+		return
+	}
+
+	log.Printf("VERIFY: Registering child '%s' on-chain (mpk=%s...)", child.DisplayName, (*child.MpkHex)[:16])
+
+	contractIndex64, err := u2sso.AddIDstoIdR(s.EthClient, s.EthKey, s.Contract, mpkBytes, uint8(child.AgeBracket))
+	if err != nil {
+		log.Printf("ERROR: On-chain registration failed for child '%s': %v", child.DisplayName, err)
+		http.Error(w, fmt.Sprintf(`{"error":"on-chain registration failed: %s"}`, err.Error()), http.StatusInternalServerError)
+		return
+	}
+	contractIndex := int(contractIndex64)
 
 	// Update child record
 	if err := s.Store.MarkChildVerified(req.ChildID, contractIndex); err != nil {
@@ -1207,6 +1223,8 @@ func (s *Server) handleGetEvents(w http.ResponseWriter, r *http.Request) {
 		ChildName     string `json:"child_name"`
 		ContractIndex int    `json:"contract_index"`
 		BlockNumber   int    `json:"block_number"`
+		ServiceName   string `json:"service_name,omitempty"`
+		EventTime     string `json:"event_time,omitempty"`
 	}
 
 	var events []EventEntry
@@ -1229,10 +1247,86 @@ func (s *Server) handleGetEvents(w http.ResponseWriter, r *http.Request) {
 		}
 	}
 
+	// Also include platform-specific events (e.g., "Alex registered on KidsTube")
+	platformActivities, err := s.Store.GetAllPlatformActivityForParent(parentID)
+	if err != nil {
+		log.Printf("WARNING: failed to load platform activity: %v", err)
+		// Don't fail — just continue without platform events
+	} else {
+		for _, pa := range platformActivities {
+			ci := 0
+			if pa.ContractIndex != nil {
+				ci = *pa.ContractIndex
+			}
+			// Find the child's display name from contract_index
+			childName := "Unknown"
+			for _, c := range children {
+				if c.ContractIndex != nil && *c.ContractIndex == ci {
+					childName = c.DisplayName
+					break
+				}
+			}
+			events = append(events, EventEntry{
+				Type:          "platform_" + pa.EventType,
+				ChildName:     childName,
+				ContractIndex: ci,
+				BlockNumber:   0, // Platform events aren't on-chain
+				ServiceName:   pa.ServiceName,
+				EventTime:     pa.EventTime,
+			})
+		}
+	}
+
 	w.Header().Set("Content-Type", "application/json")
 	json.NewEncoder(w).Encode(map[string]interface{}{
 		"success": true,
 		"events":  events,
+	})
+}
+
+// POST /api/platform/activity — receives activity reports from third-party platforms
+// (e.g., KidsTube reports that a child registered)
+func (s *Server) handlePlatformActivity(w http.ResponseWriter, r *http.Request) {
+	if r.Method != http.MethodPost {
+		writeAPIError(w, http.StatusMethodNotAllowed, "use POST")
+		return
+	}
+
+	var req struct {
+		ServiceName   string  `json:"service_name"`
+		SpkHex        string  `json:"spk_hex"`
+		EventType     string  `json:"event_type"`
+		Timestamp     string  `json:"timestamp"`
+		ContractIndex *int    `json:"contract_index"`
+	}
+
+	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
+		http.Error(w, `{"error":"invalid JSON"}`, http.StatusBadRequest)
+		return
+	}
+
+	if req.ServiceName == "" || req.SpkHex == "" || req.EventType == "" {
+		http.Error(w, `{"error":"missing required fields: service_name, spk_hex, event_type"}`, http.StatusBadRequest)
+		return
+	}
+
+	if req.Timestamp == "" {
+		req.Timestamp = time.Now().UTC().Format(time.RFC3339)
+	}
+
+	log.Printf("Platform activity: %s on %s (SPK: %s..., contractIndex: %v)",
+		req.EventType, req.ServiceName, req.SpkHex[:16], req.ContractIndex)
+
+	if err := s.Store.AddPlatformActivity(req.ContractIndex, req.ServiceName, req.SpkHex, req.EventType, req.Timestamp); err != nil {
+		log.Printf("Failed to store platform activity: %v", err)
+		http.Error(w, `{"error":"failed to store activity"}`, http.StatusInternalServerError)
+		return
+	}
+
+	w.Header().Set("Content-Type", "application/json")
+	json.NewEncoder(w).Encode(map[string]interface{}{
+		"success": true,
+		"message": "Activity recorded",
 	})
 }
 
@@ -1284,6 +1378,9 @@ func (s *Server) RegisterRoutes(mux *http.ServeMux) {
 	mux.HandleFunc("/api/parent/child/revoke", s.handleRevokeChild)
 	mux.HandleFunc("/api/parent/verify/approve", s.handleVerifyApprove)
 	mux.HandleFunc("/api/parent/events", s.handleGetEvents)
+
+	// Phase 7: Platform activity reporting (third-party platforms report child registrations)
+	mux.HandleFunc("/api/platform/activity", s.handlePlatformActivity)
 
 	// Phase 6: Parent dashboard static files
 	mux.Handle("/dashboard/", http.StripPrefix("/dashboard/", http.FileServer(http.Dir("dashboard"))))
@@ -1338,13 +1435,17 @@ func main() {
 	serviceName := flag.String("service", "KidsTube", "Platform service name (used for SPK derivation)")
 	dbPath := flag.String("db", "./veriqid.db", "Path to SQLite database file")
 	masterSecret := flag.String("master-secret", "hackathon-demo-key-change-in-production", "Encryption master secret for custodial wallets")
+	ethKey := flag.String("ethkey", "", "Deployer Ethereum private key (hex, no 0x) for on-chain registration")
 	flag.Parse()
 
 	if *contractAddr == "" {
-		log.Fatal("Error: -contract flag is required.\n\nUsage:\n  ./veriqid-server -contract 0x... [-service KidsTube] [-port 8080] [-db ./veriqid.db]")
+		log.Fatal("Error: -contract flag is required.\n\nUsage:\n  ./veriqid-server -contract 0x... -ethkey <hex> [-service KidsTube] [-port 8080] [-db ./veriqid.db]")
+	}
+	if *ethKey == "" {
+		log.Fatal("Error: -ethkey flag is required (deployer private key for on-chain registration)")
 	}
 
-	srv, err := NewServer(*serviceName, *contractAddr, *clientAddr, *dbPath, *masterSecret)
+	srv, err := NewServer(*serviceName, *contractAddr, *clientAddr, *dbPath, *masterSecret, *ethKey)
 	if err != nil {
 		log.Fatalf("Failed to initialize server: %v", err)
 	}

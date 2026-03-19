@@ -1,0 +1,105 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>KidsTube — Home</title>
+    <link rel="stylesheet" href="/static/css/kidstube.css">
+</head>
+<body class="app-body">
+    <header class="app-header">
+        <div class="logo">
+            <span class="logo-icon">&#9654;</span>
+            <span class="logo-text">KidsTube</span>
+        </div>
+        <div class="header-right">
+            <span class="user-badge">
+                <span class="badge-avatar">{{slice .Username 0 1}}</span>
+                {{.Username}}
+            </span>
+            <a href="/profile" class="btn btn-small btn-outline">Profile</a>
+            <a href="/logout" class="btn btn-small btn-ghost">Log Out</a>
+        </div>
+    </header>
+
+    <main class="content-main">
+        <section class="welcome-banner">
+            <h1>Welcome, {{.Username}}! &#127881;</h1>
+            <p>Here are today's top videos — just for verified kids.</p>
+            <div class="verified-badge">
+                <span>&#128737;</span> Verified with Veriqid — no personal data shared
+            </div>
+        </section>
+
+        <section class="video-grid">
+            <h2>Recommended For You</h2>
+            <div class="videos">
+                <div class="video-card">
+                    <div class="video-thumbnail" style="background: linear-gradient(135deg, #FF6B6B, #FFA07A);">
+                        <div class="play-overlay">&#9654;</div>
+                        <span class="duration">5:23</span>
+                    </div>
+                    <div class="video-info">
+                        <h3>Amazing Space Facts!</h3>
+                        <p class="channel">SpaceKids &bull; 890K views &bull; 2 days ago</p>
+                    </div>
+                </div>
+                <div class="video-card">
+                    <div class="video-thumbnail" style="background: linear-gradient(135deg, #4ECDC4, #2ECC71);">
+                        <div class="play-overlay">&#9654;</div>
+                        <span class="duration">8:15</span>
+                    </div>
+                    <div class="video-info">
+                        <h3>Build a Volcano at Home</h3>
+                        <p class="channel">ScienceTime &bull; 1.2M views &bull; 1 week ago</p>
+                    </div>
+                </div>
+                <div class="video-card">
+                    <div class="video-thumbnail" style="background: linear-gradient(135deg, #A78BFA, #818CF8);">
+                        <div class="play-overlay">&#9654;</div>
+                        <span class="duration">12:07</span>
+                    </div>
+                    <div class="video-info">
+                        <h3>Learn to Code: First Game!</h3>
+                        <p class="channel">CodeKids &bull; 650K views &bull; 3 days ago</p>
+                    </div>
+                </div>
+                <div class="video-card">
+                    <div class="video-thumbnail" style="background: linear-gradient(135deg, #F59E0B, #EF4444);">
+                        <div class="play-overlay">&#9654;</div>
+                        <span class="duration">6:41</span>
+                    </div>
+                    <div class="video-info">
+                        <h3>World's Coolest Animals</h3>
+                        <p class="channel">NatureWow &bull; 2.1M views &bull; 5 days ago</p>
+                    </div>
+                </div>
+                <div class="video-card">
+                    <div class="video-thumbnail" style="background: linear-gradient(135deg, #EC4899, #F472B6);">
+                        <div class="play-overlay">&#9654;</div>
+                        <span class="duration">4:55</span>
+                    </div>
+                    <div class="video-info">
+                        <h3>Easy Drawing Tutorial</h3>
+                        <p class="channel">ArtFun &bull; 430K views &bull; 1 day ago</p>
+                    </div>
+                </div>
+                <div class="video-card">
+                    <div class="video-thumbnail" style="background: linear-gradient(135deg, #06B6D4, #3B82F6);">
+                        <div class="play-overlay">&#9654;</div>
+                        <span class="duration">10:30</span>
+                    </div>
+                    <div class="video-info">
+                        <h3>Ocean Mysteries Explained</h3>
+                        <p class="channel">DeepBlue &bull; 780K views &bull; 4 days ago</p>
+                    </div>
+                </div>
+            </div>
+        </section>
+    </main>
+
+    <footer class="app-footer">
+        <p>&#128737; KidsTube verified by Veriqid — <a href="/profile">View your pseudonymous profile</a></p>
+    </footer>
+</body>
+</html>

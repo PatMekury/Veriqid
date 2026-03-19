@@ -1,0 +1,87 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>{{if .IsLogin}}Log In{{else}}Sign Up{{end}} — KidsTube</title>
+    <link rel="stylesheet" href="/static/css/kidstube.css">
+</head>
+<body class="auth-body">
+    <header class="auth-header">
+        <a href="/" class="logo">
+            <span class="logo-icon">&#9654;</span>
+            <span class="logo-text">KidsTube</span>
+        </a>
+    </header>
+
+    <main class="auth-main">
+        <div class="auth-card">
+            <div class="auth-card-header">
+                <h1>{{if .IsLogin}}Welcome Back!{{else}}Join KidsTube{{end}}</h1>
+                <p>{{if .IsLogin}}Log in with your Veriqid identity{{else}}Create your account with Veriqid — no personal info needed{{end}}</p>
+            </div>
+
+            <form action="{{if .IsLogin}}/login{{else}}/signup{{end}}" method="POST" id="veriqid-form">
+                <!-- ═══════════════════════════════════════════════
+                     VERIQID HIDDEN FIELDS
+                     The Phase 5 browser extension detects these by ID.
+                     IDs must match exactly what content.js looks for.
+                     ═══════════════════════════════════════════════ -->
+                <input type="hidden" id="veriqid-challenge" name="veriqid-challenge" value="{{.Challenge}}">
+                <input type="hidden" id="veriqid-service-name" name="veriqid-service-name" value="{{.ServiceName}}">
+                <input type="hidden" id="veriqid-spk" name="veriqid-spk" value="">
+                {{if .IsLogin}}
+                <!-- Login: content script detects veriqid-auth-proof to trigger auth flow -->
+                <input type="hidden" id="veriqid-auth-proof" name="veriqid-auth-proof" value="">
+                {{else}}
+                <!-- Signup: content script detects veriqid-proof to trigger registration flow -->
+                <input type="hidden" id="veriqid-proof" name="veriqid-proof" value="">
+                <input type="hidden" id="veriqid-decoy-size" name="veriqid-decoy-size" value="">
+                <input type="hidden" id="veriqid-nullifier" name="veriqid-nullifier" value="">
+                <input type="hidden" id="veriqid-contract-index" name="veriqid-contract-index" value="">
+                {{end}}
+                <input type="hidden" id="veriqid-signature" name="veriqid-signature" value="">
+
+                {{if not .IsLogin}}
+                <!-- Visible field: username (optional, pseudonymous) -->
+                <div class="form-group">
+                    <label for="username">Choose a display name</label>
+                    <input type="text" id="username" name="username"
+                           placeholder="e.g., CoolKid42, StarExplorer"
+                           maxlength="30"
+                           class="form-input">
+                    <p class="form-hint">This is your KidsTube nickname — not your real name!</p>
+                </div>
+                {{end}}
+
+                <div class="veriqid-status" id="veriqid-status">
+                    <div class="status-icon">&#128737;</div>
+                    <div class="status-text">
+                        <strong>Waiting for Veriqid extension...</strong>
+                        <p>The browser extension will automatically verify your identity.</p>
+                    </div>
+                </div>
+
+                <button type="submit" class="btn btn-primary btn-full" id="submit-btn" disabled>
+                    {{if .IsLogin}}Log In with Veriqid{{else}}Create Account{{end}}
+                </button>
+
+                <div class="auth-footer">
+                    {{if .IsLogin}}
+                        <p>Don't have an account? <a href="/signup">Sign up</a></p>
+                    {{else}}
+                        <p>Already have an account? <a href="/login">Log in</a></p>
+                    {{end}}
+                </div>
+            </form>
+        </div>
+
+        <div class="privacy-badge">
+            <span class="badge-icon">&#128274;</span>
+            <span>KidsTube never sees your personal information</span>
+        </div>
+    </main>
+
+    <script src="/static/js/kidstube.js"></script>
+</body>
+</html>

@@ -131,9 +131,8 @@
           display: flex;
           align-items: center;
           justify-content: center;
-          font-size: 20px;
           flex-shrink: 0;
-        ">🛡️</div>
+        "><svg width="22" height="22" viewBox="0 0 24 24" fill="none"><path d="M12 2L3 7v5c0 5.55 3.84 10.74 9 12 5.16-1.26 9-6.45 9-12V7l-9-5z" fill="${VQ.accent}" opacity="0.9"/><path d="M10 15.5l-3.5-3.5 1.41-1.41L10 12.67l5.59-5.59L17 8.5l-7 7z" fill="${VQ.dark}"/></svg></div>
 
         <!-- Text content -->
         <div style="flex: 1; min-width: 0;">
